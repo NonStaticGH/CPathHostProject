@@ -7,6 +7,10 @@
 
 UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses, float TimeLimit)
 {
+#if WITH_EDITOR
+    checkf(IsValid(Volume), TEXT("CPATH - FindPathAsync:::Volume was invalid"));
+#endif
+
     UCPathAsyncFindPath* Instance = NewObject<UCPathAsyncFindPath>();
     Instance->VolumeRef = Volume;
     Instance->RunnableFindPath = new FCPathRunnableFindPath(Instance);
@@ -14,20 +18,23 @@ UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FV
     Instance->PathEnd = EndLocation;
     Instance->Smoothing = SmoothingPasses;
     Instance->SearchTimeLimit = TimeLimit;
+    Instance->RegisterWithGameInstance(Volume->GetGameInstance());
     
     return Instance;
 }
 
 void UCPathAsyncFindPath::Activate()
 {
-    if (!VolumeRef)
+    if (!IsValid(VolumeRef))
     {
         Failure.Broadcast(UserPath, false);
+        SetReadyToDestroy();
         RemoveFromRoot();
     }
     else
     {
         CurrentThread = FRunnableThread::Create(RunnableFindPath, TEXT("AStar Pathfinding Thread"));
+        VolumeRef->GetWorld()->GetTimerManager().SetTimer(CheckThreadTimerHandle, this, &UCPathAsyncFindPath::CheckThreadStatus, 1.f / 30.f, true);
     }
 }
 
@@ -52,6 +59,27 @@ void UCPathAsyncFindPath::BeginDestroy()
     delete RunnableFindPath;
 }
 
+void UCPathAsyncFindPath::CheckThreadStatus()
+{
+    if (ThreadResponse >= 0)
+    {
+        if (ThreadResponse == 1)
+        {
+            Success.Broadcast(UserPath, true);
+        }
+        else
+            Failure.Broadcast(UserPath, false);
+
+        if (IsValid(VolumeRef))
+        {
+            VolumeRef->GetWorld()->GetTimerManager().ClearTimer(CheckThreadTimerHandle);
+        }
+        
+        SetReadyToDestroy();
+        RemoveFromRoot();
+    }    
+}
+
 
 
 FCPathRunnableFindPath::FCPathRunnableFindPath(UCPathAsyncFindPath* AsyncNode)
@@ -69,31 +97,23 @@ uint32 FCPathRunnableFindPath::Run()
 {
     // Waiting for the volume to finish generating
     while(AsyncActionRef->VolumeRef->GeneratorsRunning.load() > 0 && !AStar->bStop)
-        std::this_thread::sleep_for(std::chrono::milliseconds(25));
-    
-
-   
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));          
 
     // Preventing further generation while we search for a path
     bIncreasedPathfRunning = true;
     AsyncActionRef->VolumeRef->PathfindersRunning++;
-
     
     auto FoundPath = AStar->FindPath(AsyncActionRef->VolumeRef, AsyncActionRef->PathStart, AsyncActionRef->PathEnd, AsyncActionRef->Smoothing, AsyncActionRef->SearchTimeLimit);
-    
-
     if (FoundPath)
     {
-        //AStar->DrawPath(FoundPath);
-        AStar->TransformToUserPath(FoundPath, AsyncActionRef->UserPath);
-        AsyncActionRef->Success.Broadcast(AsyncActionRef->UserPath, true);
+        AStar->TransformToUserPath(FoundPath, AsyncActionRef->UserPath);        
+        AsyncActionRef->ThreadResponse.store(1);
     }
     else
     {
-        AsyncActionRef->Failure.Broadcast(AsyncActionRef->UserPath, false);
+        AsyncActionRef->ThreadResponse.store(0);
     }
-    AsyncActionRef->RemoveFromRoot();
-
+       
     if (bIncreasedPathfRunning)
         AsyncActionRef->VolumeRef->PathfindersRunning--;
     bIncreasedPathfRunning = false;

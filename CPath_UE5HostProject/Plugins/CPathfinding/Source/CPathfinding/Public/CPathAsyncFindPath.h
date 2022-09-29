@@ -7,6 +7,7 @@
 #include "Core/Public/HAL/Runnable.h"
 #include "Core/Public/HAL/RunnableThread.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
+#include <atomic>
 #include "CPathAsyncFindPath.generated.h"
 
 
@@ -47,6 +48,11 @@ public:
 	uint32 Smoothing;
 	float SearchTimeLimit;
 
+	// 1 = finished Success
+	// 0 = finished failed
+	std::atomic_int ThreadResponse = -1;
+	FTimerHandle CheckThreadTimerHandle;
+	void CheckThreadStatus();
 
 	TArray<FCPathNode> UserPath;
 	TArray<CPathAStarNode> RawPathNodes;

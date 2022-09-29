@@ -17,6 +17,10 @@
 			"TargetAllowList": [
 				"Editor"
 			]
+		},
+		{
+			"Name": "CPathfinding",
+			"Enabled": true
 		}
 	]
 }

@@ -53,26 +53,30 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
 		TEnumAsByte<ECollisionChannel>  TraceChannel;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
-		float AgentRadius = 20;
-		
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
-		float AgentHalfHeight = 75;
-
 	// Spports Capsule, sphere and box.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
 		TEnumAsByte<EAgentShape> AgentShape = EAgentShape::Capsule;
 
-	// How many timer per second do parts of the volume get regenerated based on dynamic obstacles, in seconds
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
+		float AgentRadius = 0;
+		
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
+		float AgentHalfHeight = 0;
+
+
+	// Size of the smallest voxel edge.
+	// In most cases, setting this to min(AgentRadius, AgentHalfHeight)*2 is enough.
+	// For precise (dense) graph - set this to min(AgentRadius, AgentHalfHeight).
+	// Small values increase memory cost, and potentially CPU load.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
+		float VoxelSize = 50;
+
+
+	// How many times per second do parts of the volume get regenerated based on dynamic obstacles, in seconds.
+	// Values higher than 5 are an overkill, but for the purpose of user freedom, I leave it unlocked.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
 		float DynamicObstaclesUpdateRate = 3;
 
-
-	// Size of the smallest voxel size, default: AgentRadius*2
-	// If you have a lot of tight spaces and want precise pathfinding, set this lower than your lowest Agent dimension.
-	// This obviously comes with increased memory cost and speed.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
-		float VoxelSize = AgentRadius*2;
 
 	// The smaller it is, the faster pathfinding, but smaller values lead to long generation time and higher memory comsumption
 	// Smaller values also limit the size of the volume.
@@ -94,6 +98,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CPathSettings)
 		float PathfindingTimeLimit = 0.5f;
 
+	// How many threads can graph generation split into. 
+	// If left <=0 (RECOMMENDED), it uses system's Physical Core count - 1. 
+	// Threads are allocated dynamically, so it only uses more than 1 thread when necessary.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CPathSettings)
+		int MaxGenerationThreads = 0;
+
 	// This is a read only info about generated graph
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = CPathGeneratedInfo)
 		TArray<int> VoxelCountAtDepth;
@@ -112,11 +122,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CPathDebug)
 		void DrawAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration);
 
-	// Shape to use when generating graph/paths. If left empty, uses voxels for every trace. 
-	//UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CPathGeneratedInfo)
-		//FCollisionShape TraceShape = FCollisionShape::MakeBox(FVector(GetVoxelSizeByDepth(OctreeDepth) / 2.f));
-
-		// Shapes to use when checking if voxel is free or not
+	// Shapes to use when checking if voxel is free or not
 	std::vector<std::vector<FCollisionShape>> TraceShapesByDepth;
 
 protected:
@@ -127,7 +133,6 @@ protected:
 
 	CPathOctree* Octrees = nullptr;
 
-protected:
 	//position of the first voxel
 	FVector StartPosition;
 
@@ -146,6 +151,9 @@ protected:
 
 	// Left returns right, up returns down, Front returns behind, etc
 	static const int8 LookupTable_OppositeSide[6];
+
+	// Set in begin play
+	float LookupTable_VoxelSizeByDepth[MAX_DEPTH + 1];
 
 
 	
@@ -274,7 +282,8 @@ private:
 	// This is so that when an actor moves, the previous space it was in needs to be regenerated as well
 	std::set<int32> TreesToRegeneratePreviousUpdate;
 
-	
+	// This is set in GenerateGraph() using a formula that estimates total voxel count
+	int OuterIndexesPerThread;
 	
 
 

@@ -17,13 +17,14 @@
 
 
 
-// Sets default values
+
 ACPathVolume::ACPathVolume()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	VolumeBox = CreateDefaultSubobject<UBoxComponent>("VolumeBox");
 	RootComponent = VolumeBox;
+	VolumeBox->InitBoxExtent(FVector(VoxelSize));
 
 }
 
@@ -204,7 +205,7 @@ void ACPathVolume::BeginPlay()
 	NodeCount[1] = VolumeBox->GetScaledBoxExtent().Y*2 / VoxelSize + 1;
 	NodeCount[2] = VolumeBox->GetScaledBoxExtent().Z*2 / VoxelSize + 1;*/
 
-	float Divider = VoxelSize * FMath::Pow(2, OctreeDepth);
+	float Divider = VoxelSize * FMath::Pow(2.f, OctreeDepth);
 
 	NodeCount[0] = FMath::CeilToInt(VolumeBox->GetScaledBoxExtent().X * 2.0 / Divider);
 	NodeCount[1] = FMath::CeilToInt(VolumeBox->GetScaledBoxExtent().Y * 2.0 / Divider);
@@ -212,12 +213,16 @@ void ACPathVolume::BeginPlay()
 
 	checkf(OctreeDepth <= MAX_DEPTH && OctreeDepth >= 0, TEXT("CPATH - Graph Generation:::OctreeDepth must be within 0 and MAX_DEPTH"));
 	//checkf(AgentShape == ECollisionShapeType::Capsule || AgentShape == ECollisionShapeType::Sphere || AgentShape == ECollisionShapeType::Box, TEXT("CPATH - Graph Generation:::Agent shape must be Capsule, Sphere or Box"));
+		
 
 	for (int i = 0; i <= OctreeDepth; i++)
 	{
 		VoxelCountAtDepth.Add(0);
+		LookupTable_VoxelSizeByDepth[i] = VoxelSize * FMath::Pow(2.f, OctreeDepth - i);
 		TraceShapesByDepth.emplace_back();
 		TraceShapesByDepth.back().push_back(FCollisionShape::MakeBox(FVector(GetVoxelSizeByDepth(i) / 2.f)));
+		
+
 		float CurrSize = GetVoxelSizeByDepth(i);
 		if (AgentRadius * 2 > CurrSize || AgentHalfHeight*2 > CurrSize)
 		{
@@ -245,12 +250,8 @@ void ACPathVolume::BeginPlay()
 	checkf((uint32)(NodeCount[0] * NodeCount[1] * NodeCount[2]) < DEPTH_0_LIMIT, TEXT("CPATH - Graph Generation:::Depth 0 is too dense, increase OctreeDepth and/or voxel size"));
 	
 	Octrees = new CPathOctree[(NodeCount[0] * NodeCount[1] * NodeCount[2])];
-
-	
-
-	UE_LOG(LogTemp, Warning, TEXT("Count, %d %d %d"), NodeCount[0], NodeCount[1], NodeCount[2] );
-	GenerateGraph();
-	
+			
+	GenerateGraph();	
 }
 
 void ACPathVolume::GenerateGraph()
@@ -263,27 +264,29 @@ void ACPathVolume::GenerateGraph()
 	// If we use all logical threads in the system, the rest of the game
 	// will have no computing power to work with. From my small test sample
 	// I have found this formula to be the optimal solution. 
-	uint32 ThreadCount;
+	
 	/*if (FPlatformMisc::NumberOfCoresIncludingHyperthreads() > FPlatformMisc::NumberOfCores())
 		ThreadCount = FPlatformMisc::NumberOfCores() + (FPlatformMisc::NumberOfCoresIncludingHyperthreads() - FPlatformMisc::NumberOfCores()) / 3;
 	else
 		ThreadCount = FPlatformMisc::NumberOfCores() - 1;*/
-	ThreadCount = FPlatformMisc::NumberOfCores();
+	if(MaxGenerationThreads <= 0)
+		MaxGenerationThreads = FPlatformMisc::NumberOfCores() - 1;
 
-	UE_LOG(LogTemp, Warning, TEXT("Outer node count, %d core count %d SizeOf Octree %d"), OuterNodeCount, ThreadCount, sizeof(CPathOctree));
-	uint32 NodesPerThread = OuterNodeCount / ThreadCount;
+	UE_LOG(LogTemp, Warning, TEXT("Outer node count, %d thread count %d SizeOf Octree %d"), OuterNodeCount, MaxGenerationThreads, sizeof(CPathOctree));
+	uint32 NodesPerThread = OuterNodeCount / MaxGenerationThreads;
 
-	for (uint32 CurrentThread = 0; CurrentThread < ThreadCount; CurrentThread++)
+	for (int CurrentThread = 0; CurrentThread < MaxGenerationThreads; CurrentThread++)
 	{
 		uint32 LastIndex = NodesPerThread * (CurrentThread + 1);
-		if (CurrentThread == ThreadCount - 1)
-			LastIndex += OuterNodeCount % ThreadCount;
+		if (CurrentThread == MaxGenerationThreads - 1)
+			LastIndex += OuterNodeCount % MaxGenerationThreads;
 		
 		GeneratorThreads.push_back(std::make_unique<FCPathAsyncVolumeGenerator>(this, NodesPerThread * CurrentThread, LastIndex));
 		GeneratorThreads.back()->ThreadRef = FRunnableThread::Create(GeneratorThreads.back().get(), TEXT("GENERATOR - Full"));
 				
 	}
-	
+	OuterIndexesPerThread = 5 * (5 + OctreeDepth) * FMath::Pow(8.f, MAX_DEPTH - OctreeDepth);
+	// Setting timer for dynamic generation and garbage collection
 	GetWorld()->GetTimerManager().SetTimer(GenerationTimerHandle, this, &ACPathVolume::GenerationUpdate, 1.f/DynamicObstaclesUpdateRate, true);
 }
 
@@ -342,7 +345,7 @@ inline float ACPathVolume::GetVoxelSizeByDepth(int Depth) const
 	checkf(Depth <= OctreeDepth, TEXT("CPATH - Graph Generation:::DEPTH was higher than OctreeDepth"));
 #endif
 
-	return VoxelSize * FMath::Pow(2, OctreeDepth - Depth);
+	return LookupTable_VoxelSizeByDepth[Depth];
 }
 
 inline uint32 ACPathVolume::CreateTreeID(uint32 Index, uint32 Depth) const
@@ -889,10 +892,11 @@ void ACPathVolume::GenerationUpdate()
 		}
 
 		// Creating threads
+		// In case there is a lot of trees to update, we split the work into multiple threads to make it faster
 		if (TreesToRegenerate.size())
 		{
-			// In case there is a lot of trees to update, we split the work into multiple threads to make it faster
-			uint32 ThreadCount = FMath::Min(FPlatformMisc::NumberOfCores(), (int)TreesToRegenerate.size() / 200);
+			
+			uint32 ThreadCount = FMath::Min(FMath::Min(FPlatformMisc::NumberOfCores(), (int)TreesToRegenerate.size() / OuterIndexesPerThread), MaxGenerationThreads);
 			ThreadCount = FMath::Max(ThreadCount, (uint32)1);
 			uint32 NodesPerThread = (uint32)TreesToRegenerate.size() / ThreadCount;
 
@@ -911,8 +915,6 @@ void ACPathVolume::GenerationUpdate()
 		}
 	}
 }
-
-
 
 
 const FVector ACPathVolume::LookupTable_ChildPositionOffsetMaskByIndex[8] = {
