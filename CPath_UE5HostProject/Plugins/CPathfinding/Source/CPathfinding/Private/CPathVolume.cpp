@@ -99,46 +99,7 @@ void ACPathVolume::DrawDebugVoxel(const CPathVoxelDrawData& DrawData, float Dura
 	DrawDebugBox(GetWorld(), DrawData.Location, FVector(DrawData.Extent), Color, Persistent, Duration, 0U, 1);		
 }
 
-void ACPathVolume::SetDebugPathStart(FVector WorldLocation)
-{
-	DebugPathStart = WorldLocation;
-	HasDebugPathStarted = true;
-
-	uint32 TreeID = 0;
-	if (FindClosestFreeLeaf(WorldLocation, TreeID))
-	{
-		DrawDebugVoxel(TreeID, true, 3);
-	}
-}
-
-void ACPathVolume::SetDebugPathEnd(FVector WorldLocation)
-{
-	CPathAStar AStar;
-
-	TArray<FCPathNode> UserPath;
-
-	uint32 TreeID = 0;
-	if (FindClosestFreeLeaf(WorldLocation, TreeID))
-	{
-		DrawDebugVoxel(TreeID, true, 3);
-	}
-
-	TArray<CPathAStarNode> RawPath;
-	auto PathEnd = AStar.FindPath(this, DebugPathStart, WorldLocation, 2, 0.6, &RawPath);
-	if (PathEnd)
-	{
-		AStar.TransformToUserPath(PathEnd, UserPath);
-		AStar.DrawPath(UserPath);
-		for (auto Node : RawPath)
-		{			
-			DrawDebugVoxel(Node.TreeID, true, 10);
-		}
-	}		
-	else
-		DrawDebugPoint(GetWorld(), WorldLocation, 100, FColor::Red, false, 0.5);
-}
-
-void ACPathVolume::DrawAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration)
+void ACPathVolume::DrawDebugNodesAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration)
 {
 	// We dont want to get new data while its generating
 	if (GeneratorsRunning.load())
@@ -191,6 +152,17 @@ void ACPathVolume::DrawAroundLocation(FVector WorldLocation, int VoxelLimit, flo
 				VisitedIndexes.insert(NewTreeID);
 			}
 		}
+	}
+}
+
+void ACPathVolume::DrawDebugPath(const TArray<FCPathNode>& Path, float Duration, bool DrawPoints, FColor Color)
+{
+	bool Persistent = Duration < 0;
+	for (int i = 0; i < Path.Num() - 1; i++)
+	{
+		DrawDebugLine(GetWorld(), Path[i].WorldLocation, Path[i + 1].WorldLocation, Color, Persistent, Duration, 0U, 1.5);
+		if(DrawPoints)
+			DrawDebugPoint(GetWorld(), Path[i].WorldLocation, 10, FColor::Cyan, Persistent, Duration);
 	}
 }
 

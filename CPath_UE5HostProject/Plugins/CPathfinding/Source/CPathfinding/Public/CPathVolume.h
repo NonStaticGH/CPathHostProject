@@ -112,15 +112,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CPathDebug)
 		void DebugDrawNeighbours(FVector WorldLocation);
 
-	UFUNCTION(BlueprintCallable, Category = CPathDebug)
-		void SetDebugPathStart(FVector WorldLocation);
-
-	UFUNCTION(BlueprintCallable, Category = CPathDebug)
-		void SetDebugPathEnd(FVector WorldLocation);
-
 	// Draws the octree structure around WorldLocation, up tp VoxelLlimit
 	UFUNCTION(BlueprintCallable, Category = CPathDebug)
-		void DrawAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration);
+		void DrawDebugNodesAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration);
+
+	// Draws path with points, for visualization only 
+	UFUNCTION(BlueprintCallable, Category = CPathDebug)
+		void DrawDebugPath(const TArray<FCPathNode>& Path, float Duration, bool DrawPoints = true, FColor Color = FColor::Magenta);
+
 
 	// Shapes to use when checking if voxel is free or not
 	std::vector<std::vector<FCollisionShape>> TraceShapesByDepth;
