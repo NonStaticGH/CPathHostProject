@@ -35,7 +35,7 @@ void UCPathDynamicObstacle::Activate(bool bReset)
 	TSubclassOf<ACPathVolume> Filter = ACPathVolume::StaticClass();
 	GetOwner()->GetOverlappingActors(OverlappigVolumes, ACPathVolume::StaticClass());
 	//GetOwner()->GetOverlappingActors(OverlappigVolumes);
-	UE_LOG(LogTemp, Warning, TEXT("OverlappingCount = %d"), OverlappigVolumes.Num());
+	//UE_LOG(LogTemp, Warning, TEXT("OverlappingCount = %d"), OverlappigVolumes.Num());
 	for (AActor* Volume : OverlappigVolumes)
 	{
 		Cast<ACPathVolume>(Volume)->TrackedDynamicObstacles.insert(this);
@@ -131,7 +131,7 @@ void UCPathDynamicObstacle::OnBeginOverlap(AActor* Owner, AActor* OtherActor)
 {
 	if (IsActive())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("BEGIN OVERLAP - This actor: %s   Other actor: %s"), *Owner->GetName(), *OtherActor->GetName());
+		//UE_LOG(LogTemp, Warning, TEXT("BEGIN OVERLAP - This actor: %s   Other actor: %s"), *Owner->GetName(), *OtherActor->GetName());
 
 		ACPathVolume* Volume = Cast<ACPathVolume>(OtherActor);
 		if (Volume)
@@ -146,7 +146,7 @@ void UCPathDynamicObstacle::OnEndOverlap(AActor* Owner, AActor* OtherActor)
 {
 	if (IsActive())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("END OVERLAP - This actor: %s   Other actor: %s"), *Owner->GetName(), *OtherActor->GetName());
+		//UE_LOG(LogTemp, Warning, TEXT("END OVERLAP - This actor: %s   Other actor: %s"), *Owner->GetName(), *OtherActor->GetName());
 		ACPathVolume* Volume = Cast<ACPathVolume>(OtherActor);
 		if (Volume)
 		{

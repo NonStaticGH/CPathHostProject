@@ -129,12 +129,12 @@ void FCPathRunnableFindPath::Stop()
 
     delete AStar;
     AStar = nullptr;
-    UE_LOG(LogTemp, Warning, TEXT("pathfinder stopped"));
+    //UE_LOG(LogTemp, Warning, TEXT("pathfinder stopped"));
 }
 
 void FCPathRunnableFindPath::Exit()
 {
     delete AStar;
     AStar = nullptr;
-    UE_LOG(LogTemp, Warning, TEXT("pathfinder exit"));
+   // UE_LOG(LogTemp, Warning, TEXT("pathfinder exit"));
 }

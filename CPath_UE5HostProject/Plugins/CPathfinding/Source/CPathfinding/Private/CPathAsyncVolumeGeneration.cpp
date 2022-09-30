@@ -13,7 +13,7 @@ FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uin
 	bObstacles = Obstacles;
 	FirstIndex = StartIndex;
 	LastIndex = EndIndex;
-	UE_LOG(LogTemp, Warning, TEXT("CONSTRUCTOR, %d %d"), LastIndex, FirstIndex);
+	//UE_LOG(LogTemp, Warning, TEXT("CONSTRUCTOR, %d %d"), LastIndex, FirstIndex);
 }
 
 // Sets default values
@@ -25,7 +25,7 @@ FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume)
 
 FCPathAsyncVolumeGenerator::~FCPathAsyncVolumeGenerator()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Thread %d - Destroying"), LastIndex);
+	//UE_LOG(LogTemp, Warning, TEXT("Thread %d - Destroying"), LastIndex);
 	bStop = true;
 	if (ThreadRef)
 		ThreadRef->Kill(true);
@@ -80,12 +80,6 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 
 	//UE_LOG(LogTemp, Warning, TEXT("Thread %d - bStop= %d"), LastIndex, bStop);
 
-	if (!bStop)
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("Thread %d - %lf ms"), LastIndex, b);
-	}
-	else
-		UE_LOG(LogTemp, Warning, TEXT("Thread %d - interrupted"), LastIndex);
 	
 	if (bIncreasedGenRunning)
 		VolumeRef->GeneratorsRunning--;
