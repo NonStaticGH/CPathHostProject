@@ -8,15 +8,7 @@
  * 
  */
 
-enum ENeighbourDirection
-{
-	Left,	// -Y
-	Front,	// -X
-	Right,	// +Y
-	Behind, // +X
-	Below,	// -Z
-	Above	// +Z
-};
+
 
 // The Octree representation
 class CPATHFINDING_API CPathOctree
@@ -47,7 +39,7 @@ public:
 	};
 };
 
-// Class used to remember data needed to draw a voxel (for debugging)
+// Class used to remember data needed to draw a debug voxel 
 class CPathVoxelDrawData
 {
 

@@ -5,12 +5,12 @@
 
 #include "DrawDebugHelpers.h"
 #include "Components/BoxComponent.h"
-#include "CPathAStar.h" // this is for debugging only, remove later
 #include <queue>
 #include <deque>
 #include <list>
 #include <unordered_set>
 #include "CPathDynamicObstacle.h"
+#include "CPathNode.h"
 #include "TimerManager.h"
 #include "GenericPlatform/GenericPlatformAtomics.h"
 
@@ -226,7 +226,7 @@ void ACPathVolume::BeginPlay()
 	GenerateGraph();	
 }
 
-void ACPathVolume::GenerateGraph()
+bool ACPathVolume::GenerateGraph()
 {
 
 	
@@ -260,6 +260,7 @@ void ACPathVolume::GenerateGraph()
 	OuterIndexesPerThread = 5 * (5 + OctreeDepth) * FMath::Pow(8.f, MAX_DEPTH - OctreeDepth);
 	// Setting timer for dynamic generation and garbage collection
 	GetWorld()->GetTimerManager().SetTimer(GenerationTimerHandle, this, &ACPathVolume::GenerationUpdate, 1.f/DynamicObstaclesUpdateRate, true);
+	return true;
 }
 
 void ACPathVolume::Tick(float DeltaTime)
