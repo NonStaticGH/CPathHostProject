@@ -134,7 +134,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 	{
 		if (FailReason != Timeout)
 			FailReason = Unknown;
-		UE_LOG(LogTemp, Warning, TEXT("PATHFINDING INTERRUPTED!!"));
+
 		return nullptr;
 	}
 
@@ -174,8 +174,10 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		FailReason = EndLocationUnreachable;
 	}
 
+#ifdef LOG_PATHFINDERS
 	auto CurrDuration = TIMEDIFF(TimeStart, TIMENOW);
-	UE_LOG(LogTemp, Warning, TEXT("PATHFINDING COMPLETE:  time= %lfms    NodesVisited= %d   NodesProcessed= %d"), CurrDuration, VisitedNodes.size(), ProcessedNodes.size());
+	UE_LOG(LogTemp, Warning, TEXT("FindPath:  time= %lfms  NodesVisited= %d  NodesProcessed= %d"), CurrDuration, VisitedNodes.size(), ProcessedNodes.size());
+#endif
 
 	return FoundPathEnd;
 }
@@ -295,8 +297,6 @@ void CPathAStar::SmoothenPath(CPathAStarNode* PathEndNode)
 	}
 }
 
-
-
 UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses, float TimeLimit)
 {
 #if WITH_EDITOR
@@ -321,15 +321,13 @@ void UCPathAsyncFindPath::Activate()
     }
     else
     {
-        CurrentThread = FRunnableThread::Create(RunnableFindPath, TEXT("AStar Pathfinding Thread"));
+        CurrentThread = FRunnableThread::Create(RunnableFindPath, TEXT("CPath Pathfinding Thread"));
 		AStar->Volume->GetWorld()->GetTimerManager().SetTimer(CheckThreadTimerHandle, this, &UCPathAsyncFindPath::CheckThreadStatus, 1.f / 30.f, true);
     }
 }
 
 void UCPathAsyncFindPath::BeginDestroy()
 {
-
-
     Super::BeginDestroy();
     if (CurrentThread)
     {
@@ -422,12 +420,10 @@ void FCPathRunnableFindPath::Stop()
     if(bIncreasedPathfRunning)
 		AsyncActionRef->AStar->Volume->PathfindersRunning--;
     bIncreasedPathfRunning = false;
-	       
-    //UE_LOG(LogTemp, Warning, TEXT("pathfinder stopped"));
+
 }
 
 void FCPathRunnableFindPath::Exit()
 {
-   
-   // UE_LOG(LogTemp, Warning, TEXT("pathfinder exit"));
+
 }

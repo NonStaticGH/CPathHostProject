@@ -112,9 +112,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
 		bool GenerationStarted = false;
 
-	// This is a read only info about generated graph
+	// This is a read only info about initially generated graph
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
-		TArray<int> VoxelCountAtDepth;
+		TArray<int> OctreeCountAtDepth = {0, 0, 0, 0};
+
+	// This is a read only info about initially generated graph
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
+		int TotalNodeCount = 0;
 
 	// Finds and draws a path from first call to 2nd call. Calls outside of volume dont count.
 	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
@@ -312,7 +316,9 @@ protected:
 	// This is set in GenerateGraph() using a formula that estimates total voxel count
 	int OuterIndexesPerThread;
 	
+	bool ThreadIDs[64];
 
+	inline uint32 GetFreeThreadID() const;
 
 // -------- DEBUGGING -----
 	std::vector<CPathVoxelDrawData> PreviousDrawAroundLocationData;

@@ -6,14 +6,15 @@
 #include "Engine/World.h"
 #include <thread>
 
-FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uint32 StartIndex, uint32 EndIndex, bool Obstacles)
+FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uint32 StartIndex, uint32 EndIndex, uint8 ThreadID, FString ThreadName, bool Obstacles)
 	:
 	FCPathAsyncVolumeGenerator(Volume)
 {
 	bObstacles = Obstacles;
 	FirstIndex = StartIndex;
 	LastIndex = EndIndex;
-	//UE_LOG(LogTemp, Warning, TEXT("CONSTRUCTOR, %d %d"), LastIndex, FirstIndex);
+	GenThreadID = ThreadID;
+	Name = ThreadName;
 }
 
 // Sets default values
@@ -25,7 +26,6 @@ FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume)
 
 FCPathAsyncVolumeGenerator::~FCPathAsyncVolumeGenerator()
 {
-	//UE_LOG(LogTemp, Warning, TEXT("Thread %d - Destroying"), LastIndex);
 	bStop = true;
 	if (ThreadRef)
 		ThreadRef->Kill(true);
@@ -42,13 +42,13 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 	VolumeRef->GeneratorsRunning++;
 	
 	// Waiting for pathfinders to finish.
-	// Generators have priority over pathfinders, so we block further pathfinders from starting by incrementing GeneratorsRunning first
-	//std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+	// Generators have priority over pathfinders, so we block further pathfinders from starting by incrementing GeneratorsRunning first	
 	while (VolumeRef->PathfindersRunning.load() > 0 && !bStop)
 		std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
+#ifdef LOG_GENERATORS
 	auto GenerationStart = TIMENOW;
-
+#endif
 
 	if (LastIndex > 0)
 	{
@@ -76,10 +76,17 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 		}
 	}
 
-	auto b = TIMEDIFF(GenerationStart, TIMENOW);
+#ifdef LOG_GENERATORS
+	auto GenerationTime = TIMEDIFF(GenerationStart, TIMENOW);
 
-	//UE_LOG(LogTemp, Warning, TEXT("Thread %d - bStop= %d"), LastIndex, bStop);
+	int NodeCount = 0;
+	for (int i = 0; i <= VolumeRef->OctreeDepth; i++)
+	{
+		NodeCount += OctreeCountAtDepth[i];
+	}
 
+	UE_LOG(LogTemp, Warning, TEXT("%s generated %d nodes in %lfms"), *Name, NodeCount, GenerationTime);
+#endif
 	
 	if (bIncreasedGenRunning)
 		VolumeRef->GeneratorsRunning--;
@@ -95,14 +102,11 @@ void FCPathAsyncVolumeGenerator::Stop()
 		VolumeRef->GeneratorsRunning--;
 
 	bIncreasedGenRunning = false;
-	//UE_LOG(LogTemp, Warning, TEXT("Generator %d stopped"), LastIndex);
 }
 
 void FCPathAsyncVolumeGenerator::Exit()
 {
-	//UE_LOG(LogTemp, Warning, TEXT("Generator %d Exit"), LastIndex);
-	// Setting thread ref to null so that it can be collected by CleanFinishedThreads in volume
-	ThreadRef = nullptr;
+
 }
 
 void FCPathAsyncVolumeGenerator::RefreshTree(uint32 OuterIndex)
@@ -112,7 +116,6 @@ void FCPathAsyncVolumeGenerator::RefreshTree(uint32 OuterIndex)
 	{
 		return;
 	}
-
 	RefreshTreeRec(OctreeRef, 0, VolumeRef->WorldLocationFromTreeID(OuterIndex));
 }
 
@@ -121,7 +124,7 @@ bool FCPathAsyncVolumeGenerator::RefreshTreeRec(CPathOctree* OctreeRef, uint32 D
 
 	bool IsFree = VolumeRef->CheckAndUpdateTree(OctreeRef, TreeLocation, Depth);
 
-	VolumeRef->VoxelCountAtDepth[Depth]++;
+	OctreeCountAtDepth[Depth]++;
 
 	if (IsFree)
 	{

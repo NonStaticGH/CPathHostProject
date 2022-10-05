@@ -207,7 +207,7 @@ bool ACPathVolume::GenerateGraph()
 
 	for (int i = 0; i <= OctreeDepth; i++)
 	{
-		VoxelCountAtDepth.Add(0);
+		
 		LookupTable_VoxelSizeByDepth[i] = VoxelSize * FMath::Pow(2.f, OctreeDepth - i);
 		TraceShapesByDepth.emplace_back();
 		TraceShapesByDepth.back().push_back(FCollisionShape::MakeBox(FVector(GetVoxelSizeByDepth(i) / 2.f)));
@@ -245,18 +245,36 @@ bool ACPathVolume::GenerateGraph()
 	if(MaxGenerationThreads <= 0)
 		MaxGenerationThreads = FPlatformMisc::NumberOfCores() - 1;
 
-	UE_LOG(LogTemp, Warning, TEXT("Outer node count, %d thread count %d SizeOf Octree %d"), OuterNodeCount, MaxGenerationThreads, sizeof(CPathOctree));
+	MaxGenerationThreads = FMath::Min(MaxGenerationThreads, 31);
+
 	uint32 NodesPerThread = OuterNodeCount / MaxGenerationThreads;
 
+	for (int i = 0; i < 64; i++)
+	{
+		ThreadIDs[1] = false;
+	}
+
+	
 	for (int CurrentThread = 0; CurrentThread < MaxGenerationThreads; CurrentThread++)
 	{
 		uint32 LastIndex = NodesPerThread * (CurrentThread + 1);
 		if (CurrentThread == MaxGenerationThreads - 1)
 			LastIndex += OuterNodeCount % MaxGenerationThreads;
 		
-		GeneratorThreads.push_back(std::make_unique<FCPathAsyncVolumeGenerator>(this, NodesPerThread * CurrentThread, LastIndex));
-		GeneratorThreads.back()->ThreadRef = FRunnableThread::Create(GeneratorThreads.back().get(), TEXT("GENERATOR - Full"));
-				
+		int ThreadID = GetFreeThreadID();
+		FString ThreadName = "CPathGenerator Initial, ID: ";
+		ThreadName.AppendInt(ThreadID);
+		GeneratorThreads.push_back(std::make_unique<FCPathAsyncVolumeGenerator>(this, NodesPerThread * CurrentThread, LastIndex, ThreadID, ThreadName));
+		GeneratorThreads.back()->ThreadRef = FRunnableThread::Create(GeneratorThreads.back().get(), *ThreadName);
+		if (GeneratorThreads.back()->ThreadRef)
+		{
+			ThreadIDs[ThreadID] = true;
+		}
+		else
+		{
+			GeneratorThreads.pop_back();
+		}
+						
 	}
 	OuterIndexesPerThread = 5 * (5 + OctreeDepth) * FMath::Pow(8.f, MAX_DEPTH - OctreeDepth);
 	// Setting timer for dynamic generation and garbage collection
@@ -856,7 +874,6 @@ void ACPathVolume::FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighb
 }
 
 
-
 inline CPathOctree* ACPathVolume::GetParentTree(uint32 TreeId)
 {
 	uint32 Depth = ExtractDepth(TreeId);
@@ -868,10 +885,23 @@ inline CPathOctree* ACPathVolume::GetParentTree(uint32 TreeId)
 	return nullptr;
 }
 
+inline uint32 ACPathVolume::GetFreeThreadID() const
+{
+	for (int ID = 0; ID < 64; ID++)
+	{
+		if (!ThreadIDs[ID])
+			return ID;
+	}
+
+	// This will never return as max number of generation threads is always less than 64
+	return 0;
+}
+
 void ACPathVolume::CleanFinishedGenerators()
 {
 	for (auto Generator = GeneratorThreads.begin(); Generator != GeneratorThreads.end(); Generator++)
 	{
+		ThreadIDs[(*Generator)->GenThreadID] = false;
 		if (!(*Generator)->ThreadRef)
 		{
 			Generator = GeneratorThreads.erase(Generator);
@@ -886,6 +916,20 @@ void ACPathVolume::InitialGenerationUpdate()
 	{
 		InitialGenerationCompleteAtom.store(true);
 		InitialGenerationFinished = true;
+		
+		for (auto Generator = GeneratorThreads.begin(); Generator != GeneratorThreads.end(); Generator++)
+		{
+			for (int Depth = 0; Depth <= OctreeDepth; Depth++)
+			{
+				OctreeCountAtDepth[Depth] += Generator->get()->OctreeCountAtDepth[Depth];
+				
+			}
+		}
+		for (int Depth = 0; Depth <= OctreeDepth; Depth++)
+		{			
+			 TotalNodeCount += OctreeCountAtDepth[Depth];
+		}
+		  
 
 		CleanFinishedGenerators();	
 		GetWorld()->GetTimerManager().ClearTimer(GenerationTimerHandle);
@@ -902,7 +946,7 @@ void ACPathVolume::GenerationUpdate()
 #endif
 	// Garbage collecting generators that finished their job
 	CleanFinishedGenerators();
-	//UE_LOG(LogTemp, Warning, TEXT("generators running %d, Generator list size %d, Pathfinders running %d"), GeneratorsRunning.load(), GeneratorThreads.size(), PathfindersRunning.load());
+	
 	
 
 	// We skip this update if generation from previous update is still running
@@ -952,15 +996,24 @@ void ACPathVolume::GenerationUpdate()
 				if (CurrentThread == ThreadCount - 1)
 					LastIndex += TreesToRegenerate.size() % ThreadCount;
 
-				GeneratorThreads.push_back(std::make_unique<FCPathAsyncVolumeGenerator>(this, NodesPerThread * CurrentThread, LastIndex, true));
-				GeneratorThreads.back()->ThreadRef = FRunnableThread::Create(GeneratorThreads.back().get(), TEXT("GENERATOR - Obstacles"));
-
+				int ThreadID = GetFreeThreadID();
+				FString ThreadName = "CPathGenerator Dynamic, ID: ";
+				ThreadName.AppendInt(ThreadID);
+				GeneratorThreads.push_back(std::make_unique<FCPathAsyncVolumeGenerator>(this, NodesPerThread * CurrentThread, LastIndex, ThreadID, ThreadName, true));
+				GeneratorThreads.back()->ThreadRef = FRunnableThread::Create(GeneratorThreads.back().get(), *ThreadName);
+				if (GeneratorThreads.back()->ThreadRef)
+				{
+					ThreadIDs[ThreadID] = true;
+				}
+				else
+				{
+					GeneratorThreads.pop_back();
+				}				
 			}
 			//UE_LOG(LogTemp, Warning, TEXT("GENERATION UPDATE Tracked - %d, Indexes - %d, Threads - %d"), TrackedDynamicObstacles.size(), TreesToRegenerate.size(), ThreadCount);
 		}
 	}
 }
-
 
 void ACPathVolume::CalcFitness(CPathAStarNode& Node, FVector TargetLocation)
 {
@@ -988,9 +1041,6 @@ bool ACPathVolume::CheckAndUpdateTree(CPathOctree* OctreeRef, FVector TreeLocati
 	OctreeRef->SetIsFree(IsFree);
 	return IsFree;
 }
-
-
-
 
 const FVector ACPathVolume::LookupTable_ChildPositionOffsetMaskByIndex[8] = {
 	{-1, -1, -1},

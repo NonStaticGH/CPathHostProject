@@ -17,7 +17,7 @@ class FCPathAsyncVolumeGenerator : public FRunnable
 	
 public:	
 	// Geneated trees in range Start(inclusive) - End(not inclusive). If Obstacles = true, it takes from Volume->TreesToRegenerate, if not, it takes from Volume->Octrees (default)
-	FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uint32 StartIndex, uint32 EndIndex, bool Obstacles = false);
+	FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uint32 StartIndex, uint32 EndIndex, uint8 ThreadID, FString ThreadName, bool Obstacles = false);
 
 	// Not used for now
 	FCPathAsyncVolumeGenerator(ACPathVolume* Volume);
@@ -39,6 +39,13 @@ public:
 	bool bObstacles = false;
 
 	FRunnableThread* ThreadRef = nullptr;
+
+	uint8 GenThreadID;
+
+	FString Name = "";
+		
+	uint32 OctreeCountAtDepth[4] = {0, 0, 0, 0};
+
 
 protected:
 

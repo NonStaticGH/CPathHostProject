@@ -17,6 +17,10 @@
 // this is in ms
 #define TIMEDIFF(BEGIN, END) ((double)std::chrono::duration_cast<std::chrono::nanoseconds>(END - BEGIN).count())/1000000.0 
 
+// Uncomment these or define somwhere else to see performance logs
+//#define LOG_GENERATORS 1
+//#define LOG_PATHFINDERS 1
+
 enum ENeighbourDirection
 {
 	Left,	// -Y
