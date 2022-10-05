@@ -39,7 +39,7 @@ public:
 
 	virtual void Deactivate() override;
 
-	void AddIndexesToUpdate(ACPathVolume* Volume);
+	void AddIndexesToUpdate(class ACPathVolume* Volume);
 
 	virtual void EndPlay(EEndPlayReason::Type Reason) override;
 protected:

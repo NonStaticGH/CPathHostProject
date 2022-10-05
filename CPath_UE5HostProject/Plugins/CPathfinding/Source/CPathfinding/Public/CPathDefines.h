@@ -27,3 +27,26 @@ enum ENeighbourDirection
 	Above	// +Z
 };
 
+UENUM()
+enum EAgentShape
+{
+	Capsule = 3,
+	Box = 2,
+	Sphere = 0
+};
+
+// Wrong Start and End Location mean that requested location was out of volume, or it was inside an occupied space.
+UENUM()
+enum ECPathfindingFailReason
+{
+	None,
+	VolumeNotValid,
+	VolumeNotGenerated,
+	Timeout,
+	WrongStartLocation,
+	WrongEndLocation,
+	EndLocationUnreachable,
+	Unknown
+};
+
+

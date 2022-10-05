@@ -8,13 +8,6 @@
 class ACPathVolume;
 class CPathOctree;
 
-UENUM()
-enum EAgentShape
-{
-	Capsule  =3, 
-	Box      =2,
-	Sphere   =0
-};
 
 
 

@@ -33,9 +33,19 @@ CPathAStar::~CPathAStar()
 
 CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses, float TimeLimit, TArray<CPathAStarNode>* RawNodes)
 {
+	if (!IsValid(VolumeRef))
+	{
+		FailReason = VolumeNotValid;
+		return nullptr;
+	}
+	if (!VolumeRef->InitialGenerationCompleteAtom.load())
+	{
+		FailReason = VolumeNotGenerated;
+		return nullptr;
+	}
+
 	Volume = VolumeRef;
 	SearchTimeLimit = TimeLimit;
-	uint32 TempID;
 	auto TimeStart = TIMENOW;
 
 	// time limit in miliseconds
@@ -47,17 +57,28 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 	// Nodes visited OR added to priority queue
 	std::unordered_set<CPathAStarNode, CPathAStarNode::Hash> VisitedNodes;
 
+	// In case someome called FindPath on the same AStar instance
 	ProcessedNodes.clear();
 
+	
 	// Finding start and end node
+	uint32 TempID;
 	if (!Volume->FindClosestFreeLeaf(Start, TempID))
+	{
+		FailReason = WrongStartLocation;
 		return nullptr;
+	}
+		
 	CPathAStarNode StartNode(TempID);
 	StartNode.WorldLocation = Start;
 
 	if (!Volume->FindClosestFreeLeaf(End, TempID))
+	{
+		FailReason = WrongEndLocation;
 		return nullptr;
-
+	}
+		
+	// Initializing priority queue
 	CPathAStarNode TargetNode(TempID);
 	TargetLocation = Volume->WorldLocationFromTreeID(TargetNode.TreeID);
 	TargetNode.WorldLocation = TargetLocation;
@@ -80,21 +101,23 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 			break;
 		}
 
-		std::vector<uint32> Neighbours = VolumeRef->FindFreeNeighbourLeafs(CurrentNode.TreeID);
-		for (uint32 NewTreeID : Neighbours)
+		std::vector<CPathAStarNode> Neighbours = VolumeRef->FindFreeNeighbourLeafs(CurrentNode);
+		for (CPathAStarNode NewTreeNode : Neighbours)
 		{
 			if (bStop)
 				break;
-
-			CPathAStarNode NewNode(NewTreeID);
-			if (!VisitedNodes.count(NewNode))
+						
+			if (!VisitedNodes.count(NewTreeNode))
 			{
-				NewNode.PreviousNode = ProcessedNodes.back().get();
-				NewNode.WorldLocation = Volume->WorldLocationFromTreeID(NewNode.TreeID);
-				CalcFitness(NewNode);
+				NewTreeNode.PreviousNode = ProcessedNodes.back().get();
+				NewTreeNode.WorldLocation = Volume->WorldLocationFromTreeID(NewTreeNode.TreeID);
 
-				VisitedNodes.insert(NewNode);
-				Pq.push(NewNode);
+				// CalcFitness(NewNode); - this is inline and not virtual so in theory faster, but not extendable.
+				// Also from my testing, the speed difference between the two was unnoticeable at 150000 nodes processed.
+				
+				VolumeRef->CalcFitness(NewTreeNode, TargetLocation);
+				VisitedNodes.insert(NewTreeNode);
+				Pq.push(NewTreeNode);
 			}
 		}
 
@@ -102,13 +125,15 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		if (CurrDuration >= TimeLimitMS)
 		{
 			bStop = true;
-			UE_LOG(LogTemp, Warning, TEXT("Pathfinding failed - OVERTIME= %lfms    NodesVisited= %d   NodesProcessed= %d"), CurrDuration, VisitedNodes.size(), ProcessedNodes.size());
+			FailReason = ECPathfindingFailReason::Timeout;
 		}
 	}
 
 	// Pathfinidng has been interrupted due to premature thread kill, so we dont want to return an incomplete path
 	if (bStop)
 	{
+		if (FailReason != Timeout)
+			FailReason = Unknown;
 		UE_LOG(LogTemp, Warning, TEXT("PATHFINDING INTERRUPTED!!"));
 		return nullptr;
 	}
@@ -142,6 +167,11 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		{
 			SmoothenPath(FoundPathEnd);
 		}
+		FailReason = None;
+	}
+	else
+	{
+		FailReason = EndLocationUnreachable;
 	}
 
 	auto CurrDuration = TIMEDIFF(TimeStart, TIMENOW);
@@ -153,7 +183,11 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 bool CPathAStar::FindPath()
 {
 	if (!IsValid(Volume))
+	{
+		FailReason = VolumeNotValid;
 		return false;
+	}
+		
 
 	RawPathNodes.Empty();
 	UserPath.Empty();
@@ -281,7 +315,7 @@ void UCPathAsyncFindPath::Activate()
 {
     if (!IsValid(AStar->Volume))
     {
-        Failure.Broadcast(AStar->UserPath, false);
+        Failure.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
         SetReadyToDestroy();
         RemoveFromRoot();
     }
@@ -319,10 +353,10 @@ void UCPathAsyncFindPath::CheckThreadStatus()
     {
         if (ThreadResponse == 1)
         {
-            Success.Broadcast(AStar->UserPath, true);
+            Success.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
         }
         else
-            Failure.Broadcast(AStar->UserPath, false);
+            Failure.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
 
         if (IsValid(AStar->Volume))
         {
@@ -349,8 +383,18 @@ bool FCPathRunnableFindPath::Init()
 uint32 FCPathRunnableFindPath::Run()
 {
     // Waiting for the volume to finish generating
-    while(AsyncActionRef->AStar->Volume->GeneratorsRunning.load() > 0 && !AsyncActionRef->AStar->bStop)
-        std::this_thread::sleep_for(std::chrono::milliseconds(25));          
+	while ((AsyncActionRef->AStar->Volume->GeneratorsRunning.load() > 0 || !AsyncActionRef->AStar->Volume->InitialGenerationCompleteAtom.load()) && !AsyncActionRef->AStar->bStop)
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+		SleepCounter += 25;
+
+		// Cancel request for path if idled for 5 seconds or more
+		if (SleepCounter >= 5000)
+		{
+			AsyncActionRef->AStar->FailReason = VolumeNotGenerated;
+			AsyncActionRef->ThreadResponse.store(0);
+		}
+	}
 
     // Preventing further generation while we search for a path
     bIncreasedPathfRunning = true;

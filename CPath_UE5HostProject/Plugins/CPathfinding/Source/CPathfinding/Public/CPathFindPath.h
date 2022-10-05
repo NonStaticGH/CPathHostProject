@@ -12,6 +12,7 @@
 #include <CPathNode.h>
 #include <vector>
 #include <memory>
+#include <CPathDefines.h>
 #include "CPathFindPath.generated.h"
 
 
@@ -44,7 +45,8 @@ public:
 	// Removes nodes in (nearly)straight sections, transforms to Blueprint exposed struct, optionally reverses it so that the path is from start to end and returns raw nodes.
 	void TransformToUserPath(CPathAStarNode* PathEndNode, TArray<FCPathNode>& UserPath, bool bReverse = true);
 
-
+	// This is used by FindPath if it failed null.
+	ECPathfindingFailReason FailReason = None;
 
 	TArray<FCPathNode> UserPath;
 	TArray<CPathAStarNode> RawPathNodes;
@@ -84,7 +86,7 @@ private:
 
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FResponseDelegate, const TArray<FCPathNode>&, Path, bool, TestBool);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FResponseDelegate, const TArray<FCPathNode>&, Path, TEnumAsByte<ECPathfindingFailReason>, FailReason);
 
 /**
  Accessing this class through ANY MEANS other than delegates is UNSAFE.
@@ -149,6 +151,8 @@ public:
 	//bool StopThread = false;
 
 private:
+	float SleepCounter = 0;
+
 	bool bIncreasedPathfRunning = false;
 
 	class UCPathAsyncFindPath* AsyncActionRef = nullptr;

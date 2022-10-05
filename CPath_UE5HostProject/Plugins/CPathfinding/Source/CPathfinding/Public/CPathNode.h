@@ -20,8 +20,19 @@ public:
 	{
 
 	}
+	CPathAStarNode(uint32 ID, uint32 Data)
+		:
+		TreeID(ID),
+		TreeData(Data)
+	{
+
+	}
 
 	uint32 TreeID = 0xFFFFFFFF;
+
+	// Data from Octree that you may modify by overriding `CheckAndUpdateTree`
+	// and access from `CalcFitness`
+	uint32 TreeData = 0;
 
 	// We want to find a node with minimum fitness, this way distance doesnt have to be inverted
 	float FitnessResult = 9999999999.f;

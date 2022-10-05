@@ -13,6 +13,7 @@
 #include "PhysicsInterfaceTypesCore.h"
 #include "CPathDefines.h"
 #include "CPathOctree.h"
+#include "CPathNode.h"
 #include "CPathAsyncVolumeGeneration.h"
 #include "CPathVolume.generated.h"
 
@@ -32,23 +33,35 @@ public:
 	virtual void BeginDestroy() override;
 
 
+	// ------- EXTENDABLE ------
+	
+	// Overwrite this function to change the priority of nodes as they are selected for the path.
+	// Note that this is potentially called thousands of times per FindPath call, so it shouldnt be too complex (unless your graph is small)
+	virtual void CalcFitness(CPathAStarNode& Node, FVector TargetLocation);
+
+	// Overwrite this function to change the default conditions of a tree being free/ocupied.
+	// You may also save other information in the Data field of an Octree, as only the least significant bit is used.
+	// This is called during graph generation, for every subtree including leafs, so potentially millions of times. 
+	virtual bool CheckAndUpdateTree(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth);
+
+
 	// -------- BP EXPOSED ----------
 
 	//Box to mark the area to generate graph in. It should not be rotated, the rotation will be ignored.
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(BlueprintReadOnly, Category = "CPath ")
 		class UBoxComponent* VolumeBox;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
 		TEnumAsByte<ECollisionChannel>  TraceChannel;
 	
 	// Spports Capsule, sphere and box.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
 		TEnumAsByte<EAgentShape> AgentShape = EAgentShape::Capsule;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
 		float AgentRadius = 0;
 		
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
 		float AgentHalfHeight = 0;
 
 
@@ -56,59 +69,63 @@ public:
 	// In most cases, setting this to min(AgentRadius, AgentHalfHeight)*2 is enough.
 	// For precise (dense) graph - set this to min(AgentRadius, AgentHalfHeight).
 	// Small values increase memory cost, and potentially CPU load.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.1", UIMin = "0.1"))
 		float VoxelSize = 50;
-
 
 	// How many times per second do parts of the volume get regenerated based on dynamic obstacles, in seconds.
 	// Values higher than 5 are an overkill, but for the purpose of user freedom, I leave it unlocked.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	// If no dynamic obstacles were added, this doesnt have any performance impact
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.01", UIMin = "0.01", ClampMax = "60", UIMax = "60"))
 		float DynamicObstaclesUpdateRate = 3;
-
 
 	// The smaller it is, the faster pathfinding, but smaller values lead to long generation time and higher memory comsumption
 	// Smaller values also limit the size of the volume.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Settings", meta = (ClampMin = "0", ClampMax = "3", UIMin = "0", UIMax = "3"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", ClampMax = "3", UIMin = "0", UIMax = "3"))
 		int OctreeDepth = 2;
-
-	// Drawing depths for debugging, if size of this array is different than OctreeDepth, this will potentially crash
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Settings")
-		TArray<bool> DepthsToDraw;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Settings")
-		bool DrawFree = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Settings")
-		bool DrawOccupied = false;
 
 	// If start or beginning of a path is unreachable, the pathfinding will try to search the WHOLE volume, hence the limit.
 	// Default setting should be more than enough, unless you have a huge labirynth with millions of subtrees.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Settings")
-		float PathfindingTimeLimit = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
+		float PathfindingTimeLimit = 0.3f;
+
+	// If want to call Generate() later or with some condition.
+	// Note that volume wont be usable before it is generated
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
+		bool GenerateOnBeginPlay = true;
 
 	// How many threads can graph generation split into. 
 	// If left <=0 (RECOMMENDED), it uses system's Physical Core count - 1. 
 	// Threads are allocated dynamically, so it only uses more than 1 thread when necessary.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath | Settings")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath ")
 		int MaxGenerationThreads = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Settings")
-		bool GenerateOnBeginPlay = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Render")
+		bool DrawFree = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Render")
+		bool DrawOccupied = false;
+
+	// You can hide selected depths from rendering
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, EditFixedSize, Category = "CPath | Render")
+		TArray<bool> DepthsToDraw;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
+		bool GenerationStarted = false;
 
 	// This is a read only info about generated graph
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
 		TArray<int> VoxelCountAtDepth;
 
 	// Finds and draws a path from first call to 2nd call. Calls outside of volume dont count.
-	UFUNCTION(BlueprintCallable, Category = "CPath | Debug")
+	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
 		void DebugDrawNeighbours(FVector WorldLocation);
 
 	// Draws the octree structure around WorldLocation, up tp VoxelLlimit
-	UFUNCTION(BlueprintCallable, Category = "CPath | Debug")
+	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
 		void DrawDebugNodesAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration);
 
 	// Draws path with points, for visualization only 
-	UFUNCTION(BlueprintCallable, Category = "CPath | Debug")
+	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
 		void DrawDebugPath(const TArray<FCPathNode>& Path, float Duration, bool DrawPoints = true, FColor Color = FColor::Magenta);
 
 	// Before this is true, the graph is inoperable
@@ -177,6 +194,9 @@ public:
 	// Returns a list of free adjecent leafs as TreeIDs
 	std::vector<uint32> FindFreeNeighbourLeafs(uint32 TreeID);
 
+	// Same as above but wrapped in CPathAStarNode
+	std::vector<CPathAStarNode> FindFreeNeighbourLeafs(CPathAStarNode& Node);
+
 	// Returns a parent of tree with given TreeID or null if TreeID has depth of 0
 	inline CPathOctree* GetParentTree(uint32 TreeId);
 
@@ -218,6 +238,9 @@ public:
 	// Volume wont start generating as long as this is not 0
 	std::atomic_int PathfindersRunning = 0;
 		
+	// This is for other threads to check if graph is accessible
+	std::atomic_bool InitialGenerationCompleteAtom = false;
+
 	// This is filled by DynamicObstacle component
 	std::set<class UCPathDynamicObstacle*> TrackedDynamicObstacles;
 
@@ -230,6 +253,8 @@ public:
 	// Returns true if drawn, false otherwise
 	bool DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf = true, float Duration = 0, FColor Color = FColor::Green, CPathVoxelDrawData* OutDrawData = nullptr);
 	void DrawDebugVoxel(const CPathVoxelDrawData& DrawData, float Duration) const;
+
+
 
 protected:
 
@@ -255,21 +280,32 @@ protected:
 	// ASSUMES THAT PASSED TREE HAS CHILDREN
 	void FindFreeLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector);
 	
-	// Same as the other version, but skips the part of getting a tree by TreeID so its faster
+	// Same as above, but skips the part of getting a tree by TreeID so its faster
 	void FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector);
 
-	void GetAllSubtreesRec(uint32 TreeID, CPathOctree* Tree, std::vector<uint32>& Container, uint32 Depth);
+	// Same as above, but wrapped in CPathAStarNode
+	void FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<CPathAStarNode>* Vector);
 
+	// Internal function used in GetAllSubtrees
+	void GetAllSubtreesRec(uint32 TreeID, CPathOctree* Tree, std::vector<uint32>& Container, uint32 Depth);
+		
 
 // -------- GENERATION -----
 	FTimerHandle GenerationTimerHandle;
 
 	std::list<std::unique_ptr<FCPathAsyncVolumeGenerator>> GeneratorThreads;
 
+	// Garbage collection
 	void CleanFinishedGenerators();
-	void GenerationUpdate();
 
+	// Checking if initial generation has finished
+	void InitialGenerationUpdate();
+
+	// Checking if there are any trees to regenerate from dynamic obstacles
+	void GenerationUpdate();
+		
 	std::set<int32> TreesToRegenerate;
+
 	// This is so that when an actor moves, the previous space it was in needs to be regenerated as well
 	std::set<int32> TreesToRegeneratePreviousUpdate;
 
@@ -278,14 +314,11 @@ protected:
 	
 
 
-
-
 // -------- DEBUGGING -----
-	FVector DebugPathStart;
-	bool HasDebugPathStarted = false;
-
 	std::vector<CPathVoxelDrawData> PreviousDrawAroundLocationData;
 
 	std::chrono::steady_clock::time_point GenerationStart;
 	bool PrintGenerationTime = false;
+
+
 };
