@@ -1,0 +1,1 @@
+Simple but highly customizable plugin for pathfinding. Find paths in free space, on ground, on walls, 2D grid, or even 2D side scrolling with jumping (requires C++ knowledge). Easy default setup with examples, core features exposed to blueprints.

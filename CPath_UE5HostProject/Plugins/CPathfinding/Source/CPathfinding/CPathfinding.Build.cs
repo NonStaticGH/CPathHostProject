@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 using UnrealBuildTool;
 

@@ -1,4 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #include "CPathFindPath.h"
 #include "CPathVolume.h"
@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <memory>
 #include "Algo/Reverse.h"
+#include "TimerManager.h"
 #include "Engine/World.h"
 
 
@@ -60,7 +61,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 	// In case someome called FindPath on the same AStar instance
 	ProcessedNodes.clear();
 
-	
+
 	// Finding start and end node
 	uint32 TempID;
 	if (!Volume->FindClosestFreeLeaf(Start, TempID))
@@ -68,7 +69,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		FailReason = WrongStartLocation;
 		return nullptr;
 	}
-		
+
 	CPathAStarNode StartNode(TempID);
 	StartNode.WorldLocation = Start;
 
@@ -77,7 +78,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		FailReason = WrongEndLocation;
 		return nullptr;
 	}
-		
+
 	// Initializing priority queue
 	CPathAStarNode TargetNode(TempID);
 	TargetLocation = Volume->WorldLocationFromTreeID(TargetNode.TreeID);
@@ -106,7 +107,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		{
 			if (bStop)
 				break;
-						
+
 			if (!VisitedNodes.count(NewTreeNode))
 			{
 				NewTreeNode.PreviousNode = ProcessedNodes.back().get();
@@ -114,7 +115,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 
 				// CalcFitness(NewNode); - this is inline and not virtual so in theory faster, but not extendable.
 				// Also from my testing, the speed difference between the two was unnoticeable at 150000 nodes processed.
-				
+
 				VolumeRef->CalcFitness(NewTreeNode, TargetLocation);
 				VisitedNodes.insert(NewTreeNode);
 				Pq.push(NewTreeNode);
@@ -189,7 +190,7 @@ bool CPathAStar::FindPath()
 		FailReason = VolumeNotValid;
 		return false;
 	}
-		
+
 
 	RawPathNodes.Empty();
 	UserPath.Empty();
@@ -204,15 +205,6 @@ bool CPathAStar::FindPath()
 	return false;
 }
 
-void CPathAStar::DrawPath(const TArray<FCPathNode>& Path) const
-{
-	float Duration = 10;
-	for (int i = 0; i < Path.Num() - 1; i++)
-	{
-		DrawDebugLine(Volume->GetWorld(), Path[i].WorldLocation, Path[i + 1].WorldLocation, FColor::Magenta, false, Duration, 3, 1.5);
-		DrawDebugPoint(Volume->GetWorld(), Path[i].WorldLocation, 60, FColor::Cyan, false, Duration);
-	}
-}
 
 void CPathAStar::TransformToUserPath(CPathAStarNode* PathEndNode, TArray<FCPathNode>& InUserPath, bool bReverse)
 {
@@ -300,87 +292,87 @@ void CPathAStar::SmoothenPath(CPathAStarNode* PathEndNode)
 UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses, float TimeLimit)
 {
 #if WITH_EDITOR
-    checkf(IsValid(Volume), TEXT("CPATH - FindPathAsync:::Volume was invalid"));
+	checkf(IsValid(Volume), TEXT("CPATH - FindPathAsync:::Volume was invalid"));
 #endif
 
-    UCPathAsyncFindPath* Instance = NewObject<UCPathAsyncFindPath>();
-    Instance->RunnableFindPath = new FCPathRunnableFindPath(Instance);
+	UCPathAsyncFindPath* Instance = NewObject<UCPathAsyncFindPath>();
+	Instance->RunnableFindPath = new FCPathRunnableFindPath(Instance);
 	Instance->AStar = new CPathAStar(Volume, StartLocation, EndLocation, SmoothingPasses, TimeLimit);
-    Instance->RegisterWithGameInstance(Volume->GetGameInstance());
-    
-    return Instance;
+	Instance->RegisterWithGameInstance(Volume->GetGameInstance());
+
+	return Instance;
 }
 
 void UCPathAsyncFindPath::Activate()
 {
-    if (!IsValid(AStar->Volume))
-    {
-        Failure.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
-        SetReadyToDestroy();
-        RemoveFromRoot();
-    }
-    else
-    {
-        CurrentThread = FRunnableThread::Create(RunnableFindPath, TEXT("CPath Pathfinding Thread"));
+	if (!IsValid(AStar->Volume))
+	{
+		Failure.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
+		SetReadyToDestroy();
+		RemoveFromRoot();
+	}
+	else
+	{
+		CurrentThread = FRunnableThread::Create(RunnableFindPath, TEXT("CPath Pathfinding Thread"));
 		AStar->Volume->GetWorld()->GetTimerManager().SetTimer(CheckThreadTimerHandle, this, &UCPathAsyncFindPath::CheckThreadStatus, 1.f / 30.f, true);
-    }
+	}
 }
 
 void UCPathAsyncFindPath::BeginDestroy()
 {
-    Super::BeginDestroy();
-    if (CurrentThread)
-    {
-        CurrentThread->Suspend(true);
-        if (RunnableFindPath && AStar)
-        {
-           AStar->bStop = true;
-        }
-        CurrentThread->Suspend(false);
-        CurrentThread->WaitForCompletion();
-        CurrentThread->Kill();
-    }
+	Super::BeginDestroy();
+	if (CurrentThread)
+	{
+		CurrentThread->Suspend(true);
+		if (RunnableFindPath && AStar)
+		{
+			AStar->bStop = true;
+		}
+		CurrentThread->Suspend(false);
+		CurrentThread->WaitForCompletion();
+		CurrentThread->Kill();
+	}
 
-	delete AStar;	
-    delete RunnableFindPath;
+	delete AStar;
+	delete RunnableFindPath;
 }
 
 void UCPathAsyncFindPath::CheckThreadStatus()
 {
-    if (ThreadResponse >= 0)
-    {
-        if (ThreadResponse == 1)
-        {
-            Success.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
-        }
-        else
-            Failure.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
+	if (ThreadResponse >= 0)
+	{
+		if (ThreadResponse == 1)
+		{
+			Success.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
+		}
+		else
+			Failure.Broadcast(AStar->UserPath, TEnumAsByte(AStar->FailReason));
 
-        if (IsValid(AStar->Volume))
-        {
+		if (IsValid(AStar->Volume))
+		{
 			AStar->Volume->GetWorld()->GetTimerManager().ClearTimer(CheckThreadTimerHandle);
-        }
-        
-        SetReadyToDestroy();
-        RemoveFromRoot();
-    }    
+		}
+
+		SetReadyToDestroy();
+		RemoveFromRoot();
+	}
 }
 
 
 
 FCPathRunnableFindPath::FCPathRunnableFindPath(UCPathAsyncFindPath* AsyncNode)
 {
-    AsyncActionRef = AsyncNode;
+	AsyncActionRef = AsyncNode;
 }
 
 bool FCPathRunnableFindPath::Init()
-{   
-    return true;
+{
+	return true;
 }
 
 uint32 FCPathRunnableFindPath::Run()
 {
-    // Waiting for the volume to finish generating
+	// Waiting for the volume to finish generating
 	while ((AsyncActionRef->AStar->Volume->GeneratorsRunning.load() > 0 || !AsyncActionRef->AStar->Volume->InitialGenerationCompleteAtom.load()) && !AsyncActionRef->AStar->bStop)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -394,32 +386,32 @@ uint32 FCPathRunnableFindPath::Run()
 		}
 	}
 
-    // Preventing further generation while we search for a path
-    bIncreasedPathfRunning = true;
-    AsyncActionRef->AStar->Volume->PathfindersRunning++;
-    
-    auto FoundPath = AsyncActionRef->AStar->FindPath();
-    if (FoundPath)
-    {            
-        AsyncActionRef->ThreadResponse.store(1);
-    }
-    else
-    {
-        AsyncActionRef->ThreadResponse.store(0);
-    }
-       
-    if (bIncreasedPathfRunning)
+	// Preventing further generation while we search for a path
+	bIncreasedPathfRunning = true;
+	AsyncActionRef->AStar->Volume->PathfindersRunning++;
+
+	auto FoundPath = AsyncActionRef->AStar->FindPath();
+	if (FoundPath)
+	{
+		AsyncActionRef->ThreadResponse.store(1);
+	}
+	else
+	{
+		AsyncActionRef->ThreadResponse.store(0);
+	}
+
+	if (bIncreasedPathfRunning)
 		AsyncActionRef->AStar->Volume->PathfindersRunning--;
-    bIncreasedPathfRunning = false;
-    return 0;
+	bIncreasedPathfRunning = false;
+	return 0;
 }
 
 void FCPathRunnableFindPath::Stop()
 {
-    // Preventing a potential deadlock if the process is killed without waiting
-    if(bIncreasedPathfRunning)
+	// Preventing a potential deadlock if the process is killed without waiting
+	if (bIncreasedPathfRunning)
 		AsyncActionRef->AStar->Volume->PathfindersRunning--;
-    bIncreasedPathfRunning = false;
+	bIncreasedPathfRunning = false;
 
 }
 

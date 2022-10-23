@@ -1,0 +1,28 @@
+<p>Features: (Please include a full, comprehensive list of the features of the product)</p>
+<ul>
+  <li>&nbsp;Fully dynamic graph generation at runtime</li>
+  <li>&nbsp;Easy set up, one core blueprint function</li>
+  <li>&nbsp;Precision is set by user - works for setups of any size</li>
+  <li> Two example levels provided</li>
+  <li> Clean well commented code and example blueprints</li>
+</ul>
+<p>Code Modules: (Please include a full list of each Plugin module and their module type (Runtime, Editor etc.))</p>
+<ul>
+  <li>&nbsp;Runtime</li>
+</ul>
+<p>Number of Blueprints: 2</p>
+<p>Number of C&#43;&#43; Classes: 9</p>
+<p>Network Replicated: No</p>
+<p>Supported Development Platforms: (Windows)</p>
+<p>Supported Target Build Platforms: (Windows)*</p>
+<p>
+  <br>
+</p>
+<p><strong>Additional Notes:</strong></p>
+<p>This plugin is part of my Engineering Thesis and it&#39;s the first iteration of it. In future, it will be heavily updated, with even better performance (however it&#39;s perfectly usable right now on projects of any scale), will most likely come with
+  a price and a detailed YouTube video, as well as more example levels (2D setup, wall climbing setup, tile-based setup, etc.)</p>
+<p>Documentation, detail instructions and performance guidance will be available in the coming days.</p>
+<p>
+  <br>
+</p>
+<p>* It should work on all platforms supported by Unreal Engine 5, however it has only been packaged and tested on Windows.</p>

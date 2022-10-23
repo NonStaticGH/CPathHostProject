@@ -1,5 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
-
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #include "CPathDynamicObstacle.h"
 #include "CPathVolume.h"
@@ -19,10 +18,10 @@ UCPathDynamicObstacle::UCPathDynamicObstacle()
 		{
 			UE_LOG(LogTemp, Warning, TEXT("CPath - Dynamic obstacle '%s' is not Movable."), *GetOwner()->GetName());
 		}
-		if(ActivateOnBeginPlay)
+		if (ActivateOnBeginPlay)
 			GetOwner()->bGenerateOverlapEventsDuringLevelStreaming = true;
 	}
-	
+
 	// ...
 }
 
@@ -31,7 +30,7 @@ void UCPathDynamicObstacle::Activate(bool bReset)
 {
 
 	Super::Activate();
-	
+
 	TSubclassOf<ACPathVolume> Filter = ACPathVolume::StaticClass();
 	GetOwner()->GetOverlappingActors(OverlappigVolumes, ACPathVolume::StaticClass());
 
@@ -39,7 +38,7 @@ void UCPathDynamicObstacle::Activate(bool bReset)
 	{
 		Cast<ACPathVolume>(Volume)->TrackedDynamicObstacles.insert(this);
 	}
-	
+
 }
 
 void UCPathDynamicObstacle::Deactivate()
@@ -47,7 +46,7 @@ void UCPathDynamicObstacle::Deactivate()
 	Super::Deactivate();
 	for (AActor* Volume : OverlappigVolumes)
 	{
-		auto CastedVolume = Cast<ACPathVolume>(Volume); 
+		auto CastedVolume = Cast<ACPathVolume>(Volume);
 		if (IsValid(CastedVolume))
 		{
 			CastedVolume->TrackedDynamicObstacles.erase(this);
@@ -80,7 +79,7 @@ void UCPathDynamicObstacle::AddIndexesToUpdate(ACPathVolume* Volume)
 	MaxOffsetInDirection[Behind] = FMath::CeilToInt((Extent.X - (VoxelExtent - DistanceFromCenter.X)) / VoxelSize);
 	MaxOffsetInDirection[Below] = FMath::CeilToInt((Extent.Z - (VoxelExtent + DistanceFromCenter.Z)) / VoxelSize);
 	MaxOffsetInDirection[Above] = FMath::CeilToInt((Extent.Z - (VoxelExtent - DistanceFromCenter.Z)) / VoxelSize);
-	
+
 	FVector Offset = FVector::ZeroVector;
 	for (int X = -MaxOffsetInDirection[Front]; X <= MaxOffsetInDirection[Behind]; X++)
 	{
@@ -126,7 +125,7 @@ void UCPathDynamicObstacle::BeginPlay()
 void UCPathDynamicObstacle::OnBeginOverlap(AActor* Owner, AActor* OtherActor)
 {
 	if (IsActive())
-	{	
+	{
 		ACPathVolume* Volume = Cast<ACPathVolume>(OtherActor);
 		if (Volume)
 		{

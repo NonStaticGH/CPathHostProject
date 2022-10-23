@@ -1,9 +1,10 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HAL/Runnable.h"
+#include "Core/Public/HAL/Runnable.h"
+#include "Core/Public/HAL/RunnableThread.h"
 
 class ACPathVolume;
 class CPathOctree;
@@ -14,8 +15,8 @@ class CPathOctree;
 class FCPathAsyncVolumeGenerator : public FRunnable
 {
 
-	
-public:	
+
+public:
 	// Geneated trees in range Start(inclusive) - End(not inclusive). If Obstacles = true, it takes from Volume->TreesToRegenerate, if not, it takes from Volume->Octrees (default)
 	FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uint32 StartIndex, uint32 EndIndex, uint8 ThreadID, FString ThreadName, bool Obstacles = false);
 
@@ -43,8 +44,8 @@ public:
 	uint8 GenThreadID;
 
 	FString Name = "";
-		
-	uint32 OctreeCountAtDepth[4] = {0, 0, 0, 0};
+
+	uint32 OctreeCountAtDepth[4] = { 0, 0, 0, 0 };
 
 
 protected:
@@ -60,6 +61,6 @@ protected:
 	bool RefreshTreeRec(CPathOctree* OctreeRef, uint32 Depth, FVector TreeLocation);
 
 
-public: 
+public:
 
 };

@@ -1,0 +1,47 @@
+<p>
+  <br>
+</p>
+<p><strong>Blueprint exposed customization</strong> consists of:</p>
+<ul>
+  <li>Setting box shaped area of the graph</li>
+  <li>Agent shape (simple shapes)</li>
+  <li>Agent dimensions</li>
+  <li>Octree depth, 0 - grid, 3 - for large open spaces. 2 by default, suitable for most scenarios.</li>
+  <li>Graph resolution (choosing size of the smallest voxel)</li>
+</ul>
+<p>
+  <br>
+</p>
+<p><strong>C&#43;&#43; customization</strong>:</p>
+<ul>
+  <li>Modification of generating phase by overriding a single function. Each voxel can also carry additional user data that can be used during path calculation.</li>
+  <li>Overriding the fitness function used by pathfinding algorithm, with access to generated data. </li>
+</ul>
+<p>
+  <br>
+</p>
+<p><strong>Graph is generated at runtime</strong>, by default at begin play. Both generation and pathfinding requests are done <strong><em>asynchronously</em></strong>, on up to 32 threads. </p>
+<p>
+  <br>
+</p>
+<p><strong>Core functionality</strong> is a single global Find Path function, that takes two world locations and returns an array of nodes between start and end location. </p>
+<p>
+  <br>
+</p>
+<p><strong>Supports dynamic obstacles.</strong> Making an object affect the graph in real time is as simple as adding a component.</p>
+<p>
+  <br>
+</p>
+<p><strong>Path following should be implemented by the user.</strong> However, the plugin does include a simple flying pawn, with an example implementation of a &#34;Go To&#34; function. It is showcased in <strong>provided example levels</strong>.</p>
+<p>
+  <br>
+</p>
+<p>Pathfinding is implemented via customized A* algorithm with post-smoothing. It&#39;s faster than Theta* while producing very similar results. Implementation details will be included in my thesis (work in progress). The code is also available on
+  <a href&#61;&#34;https://github.com/NonStaticGH/CPathHostProject&#34;
+    target&#61;&#34;_blank&#34;>GitHub</a>.</p>
+<p>
+  <br>
+</p>
+<p>
+  <br>
+</p>

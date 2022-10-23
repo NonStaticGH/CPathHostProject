@@ -1,4 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -23,9 +23,9 @@ class ACPathVolume : public AActor
 {
 	GENERATED_BODY()
 
-	friend class FCPathAsyncVolumeGenerator;
+		friend class FCPathAsyncVolumeGenerator;
 	friend class UCPathDynamicObstacle;
-public:	
+public:
 	ACPathVolume();
 
 	virtual void Tick(float DeltaTime) override;
@@ -34,9 +34,9 @@ public:
 
 
 	// ------- EXTENDABLE ------
-	
+
 	// Overwrite this function to change the priority of nodes as they are selected for the path.
-	// Note that this is potentially called thousands of times per FindPath call, so it shouldnt be too complex (unless your graph is small)
+	// Note that this is potentially called thousands of times per FindPath call, so it shouldnt be too complex (unless your graph not very dense)
 	virtual void CalcFitness(CPathAStarNode& Node, FVector TargetLocation);
 
 	// Overwrite this function to change the default conditions of a tree being free/ocupied.
@@ -48,19 +48,19 @@ public:
 	// -------- BP EXPOSED ----------
 
 	//Box to mark the area to generate graph in. It should not be rotated, the rotation will be ignored.
-	UPROPERTY(BlueprintReadOnly, Category = "CPath ")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components ", meta = (EditCondition = "GenerationStarted==false"))
 		class UBoxComponent* VolumeBox;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
 		TEnumAsByte<ECollisionChannel>  TraceChannel;
-	
+
 	// Spports Capsule, sphere and box.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
 		TEnumAsByte<EAgentShape> AgentShape = EAgentShape::Capsule;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
 		float AgentRadius = 0;
-		
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
 		float AgentHalfHeight = 0;
 
@@ -70,7 +70,7 @@ public:
 	// For precise (dense) graph - set this to min(AgentRadius, AgentHalfHeight).
 	// Small values increase memory cost, and potentially CPU load.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.1", UIMin = "0.1"))
-		float VoxelSize = 50;
+		float VoxelSize = 60;
 
 	// How many times per second do parts of the volume get regenerated based on dynamic obstacles, in seconds.
 	// Values higher than 5 are an overkill, but for the purpose of user freedom, I leave it unlocked.
@@ -78,25 +78,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.01", UIMin = "0.01", ClampMax = "60", UIMax = "60"))
 		float DynamicObstaclesUpdateRate = 3;
 
-	// The smaller it is, the faster pathfinding, but smaller values lead to long generation time and higher memory comsumption
-	// Smaller values also limit the size of the volume.
+	// 2 Is optimal in most cases. If you have very large open speces with small amount of obstacles, then 3 will be better.
+	// For dense labirynths with little to no open space, 1 or even 0 will be faster.
+	// Check documentation for detailed performance guidance.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", ClampMax = "3", UIMin = "0", UIMax = "3"))
 		int OctreeDepth = 2;
 
-	// If start or beginning of a path is unreachable, the pathfinding will try to search the WHOLE volume, hence the limit.
-	// Default setting should be more than enough, unless you have a huge labirynth with millions of subtrees.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
-		float PathfindingTimeLimit = 0.3f;
 
 	// If want to call Generate() later or with some condition.
 	// Note that volume wont be usable before it is generated
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
 		bool GenerateOnBeginPlay = true;
 
+	// Set a custom generation thread limit. By default, it's system's Physical Core count - 1.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
+		bool OverwriteMaxGenerationThreads = false;
+
 	// How many threads can graph generation split into. 
 	// If left <=0 (RECOMMENDED), it uses system's Physical Core count - 1. 
-	// Threads are allocated dynamically, so it only uses more than 1 thread when necessary.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "CPath ")
+	// Generation threads are allocated dynamically, so it only uses more than 1 thread when necessary.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false && OverwriteMaxGenerationThreads==true", ClampMin = "0", ClampMax = "31", UIMin = "0", UIMax = "31"))
 		int MaxGenerationThreads = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Render")
@@ -114,7 +115,7 @@ public:
 
 	// This is a read only info about initially generated graph
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
-		TArray<int> OctreeCountAtDepth = {0, 0, 0, 0};
+		TArray<int> OctreeCountAtDepth = { 0, 0, 0, 0 };
 
 	// This is a read only info about initially generated graph
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
@@ -128,7 +129,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
 		void DrawDebugNodesAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration);
 
-	// Draws path with points, for visualization only 
+	// Draws path with points, for visualization only
+	// Duration == 0 - draw for one frame
+	// Duration < 0 - persistent
 	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
 		void DrawDebugPath(const TArray<FCPathNode>& Path, float Duration, bool DrawPoints = true, FColor Color = FColor::Magenta);
 
@@ -136,44 +139,27 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
 		bool InitialGenerationFinished = false;
 
-
 	// Shapes to use when checking if voxel is free or not
 	std::vector<std::vector<FCollisionShape>> TraceShapesByDepth;
-
-protected:
-	
-	virtual void BeginPlay() override;
 
 	// Returns false if graph couldnt start generating
 	bool GenerateGraph();
 
+protected:
+
+	virtual void BeginPlay() override;
+
 	CPathOctree* Octrees = nullptr;
 
-	//position of the first voxel
+
+public:
+
+	// Location of the first voxel, set during graph generation
 	FVector StartPosition;
 
-	//Dimension sizes of the Nodes array, XYZ 
+	// Dimension sizes of the Nodes array, XYZ 
 	uint32 NodeCount[3];
 
-	// ----- Lookup tables-------
-	static const FVector LookupTable_ChildPositionOffsetMaskByIndex[8];
-	static const FVector LookupTable_NeighbourOffsetByDirection[6];
-
-	// Positive values = ChildIndex of the same parent, negative values = (-ChildIndex - 1) of neighbour at Direction [6]
-	static const int8 LookupTable_NeighbourChildIndex[8][6];
-
-	// First index is side as in ENeighbourDirection, and then you get indices of children on that side (in ascending order)
-	static const int8 LookupTable_ChildrenOnSide[6][4];
-
-	// Left returns right, up returns down, Front returns behind, etc
-	static const int8 LookupTable_OppositeSide[6];
-
-	// Set in begin play
-	float LookupTable_VoxelSizeByDepth[MAX_DEPTH + 1];
-
-
-	
-public:
 	//----------- TreeID ------------------------------------------------------------------------
 
 	// Returns the child with this tree id, or his parent at DepthReached in case the child doesnt exist
@@ -241,7 +227,7 @@ public:
 
 	// Volume wont start generating as long as this is not 0
 	std::atomic_int PathfindersRunning = 0;
-		
+
 	// This is for other threads to check if graph is accessible
 	std::atomic_bool InitialGenerationCompleteAtom = false;
 
@@ -257,7 +243,6 @@ public:
 	// Returns true if drawn, false otherwise
 	bool DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf = true, float Duration = 0, FColor Color = FColor::Green, CPathVoxelDrawData* OutDrawData = nullptr);
 	void DrawDebugVoxel(const CPathVoxelDrawData& DrawData, float Duration) const;
-
 
 
 protected:
@@ -283,7 +268,7 @@ protected:
 	// Returns IDs of all free leafs on chosen side of a tree. Sides are indexed in the same way as neighbours, and adds them to passed Vector.
 	// ASSUMES THAT PASSED TREE HAS CHILDREN
 	void FindFreeLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector);
-	
+
 	// Same as above, but skips the part of getting a tree by TreeID so its faster
 	void FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector);
 
@@ -292,9 +277,9 @@ protected:
 
 	// Internal function used in GetAllSubtrees
 	void GetAllSubtreesRec(uint32 TreeID, CPathOctree* Tree, std::vector<uint32>& Container, uint32 Depth);
-		
 
-// -------- GENERATION -----
+
+	// -------- GENERATION -----
 	FTimerHandle GenerationTimerHandle;
 
 	std::list<std::unique_ptr<FCPathAsyncVolumeGenerator>> GeneratorThreads;
@@ -307,7 +292,7 @@ protected:
 
 	// Checking if there are any trees to regenerate from dynamic obstacles
 	void GenerationUpdate();
-		
+
 	std::set<int32> TreesToRegenerate;
 
 	// This is so that when an actor moves, the previous space it was in needs to be regenerated as well
@@ -315,12 +300,30 @@ protected:
 
 	// This is set in GenerateGraph() using a formula that estimates total voxel count
 	int OuterIndexesPerThread;
-	
+
 	bool ThreadIDs[64];
 
 	inline uint32 GetFreeThreadID() const;
 
-// -------- DEBUGGING -----
+
+	// ----- Lookup tables-------
+	static const FVector LookupTable_ChildPositionOffsetMaskByIndex[8];
+	static const FVector LookupTable_NeighbourOffsetByDirection[6];
+
+	// Positive values = ChildIndex of the same parent, negative values = (-ChildIndex - 1) of neighbour at Direction [6]
+	static const int8 LookupTable_NeighbourChildIndex[8][6];
+
+	// First index is side as in ENeighbourDirection, and then you get indices of children on that side (in ascending order)
+	static const int8 LookupTable_ChildrenOnSide[6][4];
+
+	// Left returns right, up returns down, Front returns behind, etc
+	static const int8 LookupTable_OppositeSide[6];
+
+	// Set in begin play
+	float LookupTable_VoxelSizeByDepth[MAX_DEPTH + 1];
+
+
+	// -------- DEBUGGING -----
 	std::vector<CPathVoxelDrawData> PreviousDrawAroundLocationData;
 
 	std::chrono::steady_clock::time_point GenerationStart;

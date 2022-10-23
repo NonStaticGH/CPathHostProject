@@ -1,21 +1,21 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 
 /**
- * 
+ *
  */
 
 
 
-// The Octree representation
+ // The Octree representation
 class CPATHFINDING_API CPathOctree
 {
 public:
 	CPathOctree();
-		
+
 
 	CPathOctree* Children = nullptr;
 
@@ -34,7 +34,7 @@ public:
 	}
 
 	~CPathOctree()
-	{		
+	{
 		delete[] Children;
 	};
 };

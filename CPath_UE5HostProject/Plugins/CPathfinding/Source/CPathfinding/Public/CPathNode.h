@@ -1,4 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #pragma once
 
@@ -6,10 +6,10 @@
 #include "CPathNode.generated.h"
 
 /**
- * 
+ *
  */
 
-// Internal class used while generating path
+ // Internal class used while generating path
 class CPathAStarNode
 {
 public:
@@ -17,16 +17,12 @@ public:
 	CPathAStarNode(uint32 ID)
 		:
 		TreeID(ID)
-	{
-
-	}
+	{}
 	CPathAStarNode(uint32 ID, uint32 Data)
 		:
 		TreeID(ID),
 		TreeData(Data)
-	{
-
-	}
+	{}
 
 	uint32 TreeID = 0xFFFFFFFF;
 
@@ -44,10 +40,10 @@ public:
 	FVector WorldLocation;
 
 	// ------ Operators for containers ----------------------------------------
-    bool operator <(const CPathAStarNode& Rhs) const
+	bool operator <(const CPathAStarNode& Rhs) const
 	{
-        return FitnessResult < Rhs.FitnessResult;
-    }
+		return FitnessResult < Rhs.FitnessResult;
+	}
 
 	bool operator >(const CPathAStarNode& Rhs) const
 	{
@@ -71,20 +67,20 @@ public:
 };
 
 
-USTRUCT(BlueprintType) 
+USTRUCT(BlueprintType)
 struct FCPathNode
 {
 	GENERATED_BODY()
 
-	FCPathNode(){}
+		FCPathNode() {}
 	FCPathNode(FVector Location)
 		:
 		WorldLocation(Location)
 	{}
 
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=CPath)
-        FVector WorldLocation;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = CPath)
+		FVector WorldLocation;
 
 	// Normalized vector pointing to next node. ZeroVector on last node.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = CPath)

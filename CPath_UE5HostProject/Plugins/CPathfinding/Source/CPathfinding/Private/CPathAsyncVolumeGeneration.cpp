@@ -1,4 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 
 #include "CPathAsyncVolumeGeneration.h"
@@ -40,7 +40,7 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 {
 	bIncreasedGenRunning = true;
 	VolumeRef->GeneratorsRunning++;
-	
+
 	// Waiting for pathfinders to finish.
 	// Generators have priority over pathfinders, so we block further pathfinders from starting by incrementing GeneratorsRunning first	
 	while (VolumeRef->PathfindersRunning.load() > 0 && !bStop)
@@ -87,7 +87,7 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 
 	UE_LOG(LogTemp, Warning, TEXT("%s generated %d nodes in %lfms"), *Name, NodeCount, GenerationTime);
 #endif
-	
+
 	if (bIncreasedGenRunning)
 		VolumeRef->GeneratorsRunning--;
 	bIncreasedGenRunning = false;
@@ -96,9 +96,9 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 
 void FCPathAsyncVolumeGenerator::Stop()
 {
-	
+
 	// Preventing a potential deadlock if the process is killed without waiting
-	if(bIncreasedGenRunning)
+	if (bIncreasedGenRunning)
 		VolumeRef->GeneratorsRunning--;
 
 	bIncreasedGenRunning = false;
@@ -129,7 +129,7 @@ bool FCPathAsyncVolumeGenerator::RefreshTreeRec(CPathOctree* OctreeRef, uint32 D
 	if (IsFree)
 	{
 		delete[] OctreeRef->Children;
-		OctreeRef->Children = nullptr;		
+		OctreeRef->Children = nullptr;
 		return true;
 	}
 	else if (++Depth <= (uint32)VolumeRef->OctreeDepth)
@@ -156,7 +156,7 @@ bool FCPathAsyncVolumeGenerator::RefreshTreeRec(CPathOctree* OctreeRef, uint32 D
 			OctreeRef->Children = nullptr;
 			return false;
 		}
-		
+
 	}
 	return false;
 }

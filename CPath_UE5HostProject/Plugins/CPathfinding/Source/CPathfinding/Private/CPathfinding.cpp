@@ -1,4 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #include "CPathfinding.h"
 
@@ -16,5 +16,5 @@ void FCPathfindingModule::ShutdownModule()
 }
 
 #undef LOCTEXT_NAMESPACE
-	
+
 IMPLEMENT_MODULE(FCPathfindingModule, CPathfinding)

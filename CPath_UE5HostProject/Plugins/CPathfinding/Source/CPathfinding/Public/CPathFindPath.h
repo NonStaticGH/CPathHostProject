@@ -1,4 +1,4 @@
-// Copyright Dominik Trautman. All Rights Reserved.
+// Copyright Dominik Trautman. Published in 2022. All Rights Reserved.
 
 #pragma once
 
@@ -18,7 +18,7 @@
 
 class ACPathVolume;
 
-/** 
+/**
 The class for pathfinding, used in UCPathAsyncFindPath. Can also be used on game thread to get the path instantly.
 */
 class CPathAStar
@@ -36,9 +36,6 @@ public:
 	// Returns true on success, result is in UserPath
 	bool FindPath();
 
-
-	void DrawPath(const TArray<FCPathNode>& Path) const;
-
 	// Set this to true to interrupt pathfinding. FindPath returns an empty array.
 	bool bStop = false;
 
@@ -48,18 +45,22 @@ public:
 	// This is used by FindPath if it failed null.
 	ECPathfindingFailReason FailReason = None;
 
+	// The final usable path
 	TArray<FCPathNode> UserPath;
+
+	// The path before preprocessing
 	TArray<CPathAStarNode> RawPathNodes;
 
+	// Cached FindPath parameters
 	FVector PathStart, PathEnd;
 	uint32 Smoothing = 2;
-	float SearchTimeLimit = 1.f/200.f;
+	float SearchTimeLimit = 1.f / 200.f;
 
 	// Used in removing nodes that lay on the same line. The biger the number, the more nodes will be removed, but the path potentially loses data.
 	float LineAngleToleranceDegrees = 3;
 
 protected:
-	
+
 	ACPathVolume* Volume;
 
 	inline float EucDistance(CPathAStarNode& Node, FVector TargetWorldLocation) const;
@@ -77,7 +78,7 @@ private:
 
 	// Iterates over the path from end to start, removing every other node if CanSkip returns true
 	inline void SmoothenPath(CPathAStarNode* PathEndNode);
- 
+
 	friend class UCPathAsyncFindPath;
 	friend class FCPathRunnableFindPath;
 
@@ -103,19 +104,16 @@ public:
 	UPROPERTY(BlueprintAssignable)
 		FResponseDelegate Failure;
 
-	
 	// On success, returns a path from Start to End location. Both start and end must be inside the given Volume.
 	// If start or end is unreachable (or time limit was exceeded) returns nothing.
 	// SmoothingPasses - During a smoothing pass, every other node is potentially removed, as long as there is an empty space to the next one.
 	// With SmoothingPasses=0, the path will be very jagged since the graph is Discrete.
 	// With SmoothingPasses > 2 there is a potential loss of data, especially if a custom Cost function is used.
-	UFUNCTION(BlueprintCallable, Category=CPath, meta = (BlueprintInternalUseOnly = "true"))
-		static UCPathAsyncFindPath* FindPathAsync(class ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses=2, float TimeLimit=0.2f);
+	UFUNCTION(BlueprintCallable, Category = CPath, meta = (BlueprintInternalUseOnly = "true"))
+		static UCPathAsyncFindPath* FindPathAsync(class ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses = 2, float TimeLimit = 0.2f);
 
 	virtual void Activate() override;
 	virtual void BeginDestroy() override;
-	
-
 
 	// 1 = finished Success
 	// 0 = finished failed
@@ -123,14 +121,13 @@ public:
 	FTimerHandle CheckThreadTimerHandle;
 	void CheckThreadStatus();
 
-
 private:
 
 	// Thread objects
 	CPathAStar* AStar = nullptr;
 	class FCPathRunnableFindPath* RunnableFindPath = nullptr;
 	FRunnableThread* CurrentThread = nullptr;
-	
+
 	friend class FCPathRunnableFindPath;
 };
 
