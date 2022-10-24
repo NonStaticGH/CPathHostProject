@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
+	"VersionName": "1.01",
 	"FriendlyName": "CPathfinding",
 	"Description": "This plugin lets you find paths in (not only) 3D space between two points. For detailed info, please refer to the documentation.",
 	"Category": "AI",
@@ -22,5 +22,7 @@
 				"Win64"
 			]
 		}
-	]
+	],
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false
 }

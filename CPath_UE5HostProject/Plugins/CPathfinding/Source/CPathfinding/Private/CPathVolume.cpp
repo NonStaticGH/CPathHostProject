@@ -181,6 +181,8 @@ void ACPathVolume::BeginPlay()
 {
 	Super::BeginPlay();
 
+	VolumeBox->SetCollisionResponseToChannel(TraceChannel, ECR_Ignore);
+
 	if (GenerateOnBeginPlay)
 		GenerateGraph();
 }

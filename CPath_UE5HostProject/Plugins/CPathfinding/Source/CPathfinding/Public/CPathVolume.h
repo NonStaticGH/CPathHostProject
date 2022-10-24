@@ -52,7 +52,7 @@ public:
 		class UBoxComponent* VolumeBox;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
-		TEnumAsByte<ECollisionChannel>  TraceChannel;
+		TEnumAsByte<ECollisionChannel>  TraceChannel = ECollisionChannel::ECC_Visibility;
 
 	// Spports Capsule, sphere and box.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
