@@ -19,7 +19,7 @@
 
 
 UCLASS()
-class ACPathVolume : public AActor
+class CPATHFINDING_API ACPathVolume : public AActor
 {
 	GENERATED_BODY()
 
@@ -42,101 +42,105 @@ public:
 	// Overwrite this function to change the default conditions of a tree being free/ocupied.
 	// You may also save other information in the Data field of an Octree, as only the least significant bit is used.
 	// This is called during graph generation, for every subtree including leafs, so potentially millions of times. 
-	virtual bool CheckAndUpdateTree(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth);
+	virtual bool RecheckOctreeAtDepth(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth);
 
 
 	// -------- BP EXPOSED ----------
 
 	//Box to mark the area to generate graph in. It should not be rotated, the rotation will be ignored.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components ", meta = (EditCondition = "GenerationStarted==false"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components", meta = (EditCondition = "GenerationStarted==false"))
 		class UBoxComponent* VolumeBox;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false"))
 		TEnumAsByte<ECollisionChannel>  TraceChannel = ECollisionChannel::ECC_Visibility;
 
 	// Spports Capsule, sphere and box.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false"))
 		TEnumAsByte<EAgentShape> AgentShape = EAgentShape::Capsule;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
+	// In case of a box, this is X and Y extent. Z and Y should be the same, since the actual agent will most likely rotate.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
 		float AgentRadius = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", UIMin = "0"))
+	// In case of a box, this is Z extent.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false && AgentShape!=EAgentShape::Sphere", ClampMin = "0", UIMin = "0"))
 		float AgentHalfHeight = 0;
+
+
 
 
 	// Size of the smallest voxel edge.
 	// In most cases, setting this to min(AgentRadius, AgentHalfHeight)*2 is enough.
 	// For precise (dense) graph - set this to min(AgentRadius, AgentHalfHeight).
 	// Small values increase memory cost, and potentially CPU load.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.1", UIMin = "0.1"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.1", UIMin = "0.1"))
 		float VoxelSize = 60;
 
 	// How many times per second do parts of the volume get regenerated based on dynamic obstacles, in seconds.
 	// Values higher than 5 are an overkill, but for the purpose of user freedom, I leave it unlocked.
 	// If no dynamic obstacles were added, this doesnt have any performance impact
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.01", UIMin = "0.01", ClampMax = "60", UIMax = "60"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0.01", UIMin = "0.01", ClampMax = "30", UIMax = "30"))
 		float DynamicObstaclesUpdateRate = 3;
 
 	// 2 Is optimal in most cases. If you have very large open speces with small amount of obstacles, then 3 will be better.
 	// For dense labirynths with little to no open space, 1 or even 0 will be faster.
 	// Check documentation for detailed performance guidance.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", ClampMax = "3", UIMin = "0", UIMax = "3"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false", ClampMin = "0", ClampMax = "3", UIMin = "0", UIMax = "3"))
 		int OctreeDepth = 2;
 
 
 	// If want to call Generate() later or with some condition.
 	// Note that volume wont be usable before it is generated
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath")
 		bool GenerateOnBeginPlay = true;
 
 	// Set a custom generation thread limit. By default, it's system's Physical Core count - 1.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath")
 		bool OverwriteMaxGenerationThreads = false;
 
 	// How many threads can graph generation split into. 
 	// If left <=0 (RECOMMENDED), it uses system's Physical Core count - 1. 
 	// Generation threads are allocated dynamically, so it only uses more than 1 thread when necessary.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath ", meta = (EditCondition = "GenerationStarted==false && OverwriteMaxGenerationThreads==true", ClampMin = "0", ClampMax = "31", UIMin = "0", UIMax = "31"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath", meta = (EditCondition = "GenerationStarted==false && OverwriteMaxGenerationThreads==true", ClampMin = "0", ClampMax = "31", UIMin = "0", UIMax = "31"))
 		int MaxGenerationThreads = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Render")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Render")
 		bool DrawFree = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath | Render")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Render")
 		bool DrawOccupied = false;
 
 	// You can hide selected depths from rendering
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, EditFixedSize, Category = "CPath | Render")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, EditFixedSize, Category = "CPath|Render")
 		TArray<bool> DepthsToDraw;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		bool GenerationStarted = false;
 
 	// This is a read only info about initially generated graph
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		TArray<int> OctreeCountAtDepth = { 0, 0, 0, 0 };
 
 	// This is a read only info about initially generated graph
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		int TotalNodeCount = 0;
 
 	// Finds and draws a path from first call to 2nd call. Calls outside of volume dont count.
-	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
+	UFUNCTION(BlueprintCallable, Category = "CPath|Render")
 		void DebugDrawNeighbours(FVector WorldLocation);
 
 	// Draws the octree structure around WorldLocation, up tp VoxelLlimit
-	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
+	UFUNCTION(BlueprintCallable, Category = "CPath|Render")
 		void DrawDebugNodesAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration);
 
 	// Draws path with points, for visualization only
 	// Duration == 0 - draw for one frame
 	// Duration < 0 - persistent
-	UFUNCTION(BlueprintCallable, Category = "CPath | Render")
+	UFUNCTION(BlueprintCallable, Category = "CPath|Render")
 		void DrawDebugPath(const TArray<FCPathNode>& Path, float Duration, bool DrawPoints = true, FColor Color = FColor::Magenta);
 
 	// Before this is true, the graph is inoperable
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath | Info")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		bool InitialGenerationFinished = false;
 
 	// Shapes to use when checking if voxel is free or not

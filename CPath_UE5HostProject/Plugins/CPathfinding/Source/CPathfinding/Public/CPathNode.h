@@ -10,7 +10,7 @@
  */
 
  // Internal class used while generating path
-class CPathAStarNode
+class CPATHFINDING_API CPathAStarNode
 {
 public:
 	CPathAStarNode();
@@ -26,7 +26,7 @@ public:
 
 	uint32 TreeID = 0xFFFFFFFF;
 
-	// Data from Octree that you may modify by overriding `CheckAndUpdateTree`
+	// Data from Octree that you may modify by overriding `RecheckOctreeAtDepth`
 	// and access from `CalcFitness`
 	uint32 TreeData = 0;
 

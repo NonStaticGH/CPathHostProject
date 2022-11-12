@@ -1026,7 +1026,7 @@ void ACPathVolume::CalcFitness(CPathAStarNode& Node, FVector TargetLocation)
 	Node.FitnessResult = Node.DistanceSoFar + 3.5f * FVector::Distance(Node.WorldLocation, TargetLocation);
 }
 
-bool ACPathVolume::CheckAndUpdateTree(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth)
+bool ACPathVolume::RecheckOctreeAtDepth(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth)
 {
 	bool IsFree = true;
 	for (auto Shape : TraceShapesByDepth[Depth])

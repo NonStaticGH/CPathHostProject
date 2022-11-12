@@ -85,8 +85,6 @@ private:
 };
 
 
-
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FResponseDelegate, const TArray<FCPathNode>&, Path, TEnumAsByte<ECPathfindingFailReason>, FailReason);
 
 /**
@@ -132,7 +130,7 @@ private:
 };
 
 // The class used to perform pathfinding on its own thread
-class FCPathRunnableFindPath : public FRunnable
+class CPATHFINDING_API FCPathRunnableFindPath : public FRunnable
 {
 public:
 	FCPathRunnableFindPath(class UCPathAsyncFindPath* AsyncNode);

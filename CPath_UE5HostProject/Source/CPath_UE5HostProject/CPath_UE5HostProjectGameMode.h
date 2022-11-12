@@ -13,6 +13,9 @@ class ACPath_UE5HostProjectGameMode : public AGameModeBase
 
 public:
 	ACPath_UE5HostProjectGameMode();
+
+	virtual void BeginPlay() override;
+
 };
 
 
