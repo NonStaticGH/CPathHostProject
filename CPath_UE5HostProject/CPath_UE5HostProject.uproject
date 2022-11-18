@@ -7,7 +7,10 @@
 		{
 			"Name": "CPath_UE5HostProject",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"CPathfinding"
+			]
 		}
 	],
 	"Plugins": [

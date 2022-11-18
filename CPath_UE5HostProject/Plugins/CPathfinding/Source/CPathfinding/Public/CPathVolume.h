@@ -37,7 +37,7 @@ public:
 
 	// Overwrite this function to change the priority of nodes as they are selected for the path.
 	// Note that this is potentially called thousands of times per FindPath call, so it shouldnt be too complex (unless your graph not very dense)
-	virtual void CalcFitness(CPathAStarNode& Node, FVector TargetLocation);
+	virtual void CalcFitness(CPathAStarNode& Node, FVector TargetLocation, int32 UserData);
 
 	// Overwrite this function to change the default conditions of a tree being free/ocupied.
 	// You may also save other information in the Data field of an Octree, as only the least significant bit is used.
@@ -114,6 +114,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, EditFixedSize, Category = "CPath|Render")
 		TArray<bool> DepthsToDraw;
 
+	// How thick should the green and red debug boxes be
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CPath|Render")
+		float DebugBoxesThickness = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CPath|Render")
+		float DebugPathThickness = 1.5f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		bool GenerationStarted = false;
 
@@ -125,7 +132,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		int TotalNodeCount = 0;
 
-	// Finds and draws a path from first call to 2nd call. Calls outside of volume dont count.
+	// Draws FREE neighbouring leafs
 	UFUNCTION(BlueprintCallable, Category = "CPath|Render")
 		void DebugDrawNeighbours(FVector WorldLocation);
 
@@ -185,10 +192,10 @@ public:
 	// Returns a neighbour of the tree with TreeID in given direction, also returns  TreeID if the neighbour if found
 	CPathOctree* FindNeighbourByID(uint32 TreeID, ENeighbourDirection Direction, uint32& NeighbourID);
 
-	// Returns a list of free adjecent leafs as TreeIDs
-	std::vector<uint32> FindFreeNeighbourLeafs(uint32 TreeID);
+	// Returns a list of adjecent leafs as TreeIDs
+	std::vector<uint32> FindNeighbourLeafs(uint32 TreeID, bool MustBeFree = true);
 
-	// Same as above but wrapped in CPathAStarNode
+	// Returns a list of adjecent free leafs as CPathAStarNode
 	std::vector<CPathAStarNode> FindFreeNeighbourLeafs(CPathAStarNode& Node);
 
 	// Returns a parent of tree with given TreeID or null if TreeID has depth of 0
@@ -271,13 +278,13 @@ protected:
 
 	// Returns IDs of all free leafs on chosen side of a tree. Sides are indexed in the same way as neighbours, and adds them to passed Vector.
 	// ASSUMES THAT PASSED TREE HAS CHILDREN
-	void FindFreeLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector);
+	void FindLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector, bool MustBeFree = true);
 
 	// Same as above, but skips the part of getting a tree by TreeID so its faster
-	void FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector);
+	void FindLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector, bool MustBeFree = true);
 
 	// Same as above, but wrapped in CPathAStarNode
-	void FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<CPathAStarNode>* Vector);
+	void FindLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<CPathAStarNode>* Vector, bool MustBeFree = true);
 
 	// Internal function used in GetAllSubtrees
 	void GetAllSubtreesRec(uint32 TreeID, CPathOctree* Tree, std::vector<uint32>& Container, uint32 Depth);
