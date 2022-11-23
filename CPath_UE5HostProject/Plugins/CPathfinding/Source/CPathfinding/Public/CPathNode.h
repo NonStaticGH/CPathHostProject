@@ -10,7 +10,7 @@
  */
 
  // Internal class used while generating path
-class CPathAStarNode
+class CPATHFINDING_API CPathAStarNode
 {
 public:
 	CPathAStarNode();
@@ -21,14 +21,14 @@ public:
 	CPathAStarNode(uint32 ID, uint32 Data)
 		:
 		TreeID(ID),
-		TreeData(Data)
+		TreeUserData(Data)
 	{}
 
 	uint32 TreeID = 0xFFFFFFFF;
 
-	// Data from Octree that you may modify by overriding `CheckAndUpdateTree`
+	// Data from Octree that you may modify by overriding `RecheckOctreeAtDepth`
 	// and access from `CalcFitness`
-	uint32 TreeData = 0;
+	uint32 TreeUserData = 0;
 
 	// We want to find a node with minimum fitness, this way distance doesnt have to be inverted
 	float FitnessResult = 9999999999.f;

@@ -12,7 +12,7 @@ class CPathOctree;
 
 
 
-class FCPathAsyncVolumeGenerator : public FRunnable
+class CPATHFINDING_API FCPathAsyncVolumeGenerator : public FRunnable
 {
 
 
@@ -33,7 +33,7 @@ public:
 
 	virtual void Exit();
 
-	// Retraces the octree from TreeID downwards. Pass optional arguments to make it a bit faster. When OctreeRef is passed, TreeID is ignored
+	// The main generating function, generated/regenerates the whole octree at given index
 	void RefreshTree(uint32 OuterIndex);
 
 	bool bStop = false;

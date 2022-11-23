@@ -25,12 +25,12 @@ class CPathAStar
 {
 public:
 	CPathAStar();
-	CPathAStar(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses = 1, float TimeLimit = 1.f / 200.f);
+	CPathAStar(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 1.f / 200.f);
 
 	~CPathAStar();
 
 	// Can be called from main thread, but can freeze the game if you increase TimeLimit.
-	CPathAStarNode* FindPath(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses = 1, float TimeLimit = 1.f / 200.f, TArray<CPathAStarNode>* RawNodes = nullptr);
+	CPathAStarNode* FindPath(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 1.f / 200.f, TArray<CPathAStarNode>* RawNodes = nullptr);
 
 	// Uses cached data in this class, only working if all the arguments were passed via constructor.
 	// Returns true on success, result is in UserPath
@@ -53,7 +53,8 @@ public:
 
 	// Cached FindPath parameters
 	FVector PathStart, PathEnd;
-	uint32 Smoothing = 2;
+	uint32 Smoothing = 2; 
+	int32 UsrData = 0;
 	float SearchTimeLimit = 1.f / 200.f;
 
 	// Used in removing nodes that lay on the same line. The biger the number, the more nodes will be removed, but the path potentially loses data.
@@ -85,8 +86,6 @@ private:
 };
 
 
-
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FResponseDelegate, const TArray<FCPathNode>&, Path, TEnumAsByte<ECPathfindingFailReason>, FailReason);
 
 /**
@@ -110,7 +109,7 @@ public:
 	// With SmoothingPasses=0, the path will be very jagged since the graph is Discrete.
 	// With SmoothingPasses > 2 there is a potential loss of data, especially if a custom Cost function is used.
 	UFUNCTION(BlueprintCallable, Category = CPath, meta = (BlueprintInternalUseOnly = "true"))
-		static UCPathAsyncFindPath* FindPathAsync(class ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses = 2, float TimeLimit = 0.2f);
+		static UCPathAsyncFindPath* FindPathAsync(class ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses = 2, int32 UserData = 0, float TimeLimit = 0.2f);
 
 	virtual void Activate() override;
 	virtual void BeginDestroy() override;
@@ -132,7 +131,7 @@ private:
 };
 
 // The class used to perform pathfinding on its own thread
-class FCPathRunnableFindPath : public FRunnable
+class CPATHFINDING_API FCPathRunnableFindPath : public FRunnable
 {
 public:
 	FCPathRunnableFindPath(class UCPathAsyncFindPath* AsyncNode);

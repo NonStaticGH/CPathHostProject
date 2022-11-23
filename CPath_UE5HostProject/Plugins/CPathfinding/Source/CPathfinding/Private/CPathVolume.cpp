@@ -43,12 +43,12 @@ void ACPathVolume::DebugDrawNeighbours(FVector WorldLocation)
 	uint32 LeafID;
 	if (FindLeafByWorldLocation(WorldLocation, LeafID))
 	{
-		DrawDebugBox(GetWorld(), WorldLocationFromTreeID(LeafID), FVector(GetVoxelSizeByDepth(ExtractDepth(LeafID)) / 2.f), FColor::Emerald, false, 5, 10, 2);
-		auto Neighbours = FindFreeNeighbourLeafs(LeafID);
+		DrawDebugBox(GetWorld(), WorldLocationFromTreeID(LeafID), FVector(GetVoxelSizeByDepth(ExtractDepth(LeafID)) / 2.f), FColor::Emerald, false, 5, 10, DebugBoxesThickness*1.3);
+		auto Neighbours = FindNeighbourLeafs(LeafID, true);
 
 		for (auto N : Neighbours)
 		{
-			DrawDebugBox(GetWorld(), WorldLocationFromTreeID(N), FVector(GetVoxelSizeByDepth(ExtractDepth(N)) / 2.f), FColor::Yellow, false, 5, 0U, 2);
+			DrawDebugBox(GetWorld(), WorldLocationFromTreeID(N), FVector(GetVoxelSizeByDepth(ExtractDepth(N)) / 2.f), FColor::Yellow, false, 5, 0U, DebugBoxesThickness*1.4);
 		}
 	}
 }
@@ -57,6 +57,7 @@ bool ACPathVolume::DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf, float Durat
 {
 
 	uint32 Depth;
+	float Thickness = DebugBoxesThickness;
 	auto Tree = FindTreeByID(TreeID, Depth);
 	if (Tree->Children && !DrawIfNotLeaf)
 		return false;
@@ -73,6 +74,7 @@ bool ACPathVolume::DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf, float Durat
 		if (Color == FColor::Green)
 		{
 			Color = FColor::Red;
+			Thickness *= 1.5;
 		}
 	}
 
@@ -85,7 +87,7 @@ bool ACPathVolume::DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf, float Durat
 	{
 		float Extent = GetVoxelSizeByDepth(ExtractDepth(TreeID)) / 2.f;
 		FVector Location = WorldLocationFromTreeID(TreeID);
-		DrawDebugBox(GetWorld(), Location, FVector(Extent), Color, Persistent, Duration, 0U, 1);
+		DrawDebugBox(GetWorld(), Location, FVector(Extent), Color, Persistent, Duration, 0U, Thickness);
 		if (OutDrawData)
 		{
 			OutDrawData->Extent = Extent;
@@ -101,12 +103,19 @@ bool ACPathVolume::DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf, float Durat
 
 void ACPathVolume::DrawDebugVoxel(const CPathVoxelDrawData& DrawData, float Duration) const
 {
-	FColor Color = DrawData.Free ? FColor::Green : FColor::Red;
+	float Thickness = DebugBoxesThickness;
+	FColor Color = FColor::Green;
+	if (!DrawData.Free)
+	{
+		Color = FColor::Red;
+		Thickness *= 1.5;
+	}
+
 	bool Persistent = false;
 	if (Duration < 0)
 		Persistent = true;
 
-	DrawDebugBox(GetWorld(), DrawData.Location, FVector(DrawData.Extent), Color, Persistent, Duration, 0U, 1);
+	DrawDebugBox(GetWorld(), DrawData.Location, FVector(DrawData.Extent), Color, Persistent, Duration, 0U, Thickness);
 }
 
 void ACPathVolume::DrawDebugNodesAroundLocation(FVector WorldLocation, int VoxelLimit, float Duration)
@@ -151,7 +160,7 @@ void ACPathVolume::DrawDebugNodesAroundLocation(FVector WorldLocation, int Voxel
 		}
 
 
-		std::vector<uint32> Neighbours = FindFreeNeighbourLeafs(CurrID);
+		std::vector<uint32> Neighbours = FindNeighbourLeafs(CurrID, !DrawOccupied);
 		for (uint32 NewTreeID : Neighbours)
 		{
 
@@ -170,7 +179,7 @@ void ACPathVolume::DrawDebugPath(const TArray<FCPathNode>& Path, float Duration,
 	bool Persistent = Duration < 0;
 	for (int i = 0; i < Path.Num() - 1; i++)
 	{
-		DrawDebugLine(GetWorld(), Path[i].WorldLocation, Path[i + 1].WorldLocation, Color, Persistent, Duration, 0U, 1.5);
+		DrawDebugLine(GetWorld(), Path[i].WorldLocation, Path[i + 1].WorldLocation, Color, Persistent, Duration, 0U, DebugPathThickness);
 		if (DrawPoints)
 			DrawDebugPoint(GetWorld(), Path[i].WorldLocation, 10, FColor::Cyan, Persistent, Duration);
 	}
@@ -585,15 +594,14 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 	StartNode.FitnessResult = 0;
 	VisitedNodes.insert(StartNode);
 
-	// Step 1, considering StartNode neighbours only, we dont check range cause neighbours take priority 
+	// STEP 1 - considering StartNode neighbours only, we dont check range cause neighbours take priority 
 	// (its faster and solves almost all cases without needing to go to the other queue)
 
-	std::vector<uint32> StartNeighbours = FindFreeNeighbourLeafs(StartNode.TreeID);
-	for (uint32 NewTreeID : StartNeighbours)
-	{
-
-		CPathAStarNode NewNode(NewTreeID);
+	std::vector<CPathAStarNode> StartNeighbours = FindFreeNeighbourLeafs(StartNode);
+	for (CPathAStarNode NewNode : StartNeighbours)
+	{		
 		NewNode.WorldLocation = WorldLocationFromTreeID(NewNode.TreeID);
+
 		// Fitness function here is distance from WorldLocation - The voxel extent, cause we want distance to the border of the voxel, not to it's center
 		NewNode.FitnessResult = FVector::Distance(NewNode.WorldLocation, WorldLocation) - GetVoxelSizeByDepth(ExtractDepth(NewNode.TreeID)) / 2.f;
 
@@ -617,10 +625,9 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 			//DrawDebugLine(GetWorld(), WorldLocation, CurrentNode.WorldLocation, FColor::Red, false, 1);
 		}
 
-		std::vector<uint32> Neighbours = FindFreeNeighbourLeafs(CurrentNode.TreeID);
-		for (uint32 NewTreeID : Neighbours)
-		{
-			CPathAStarNode NewNode(NewTreeID);
+		std::vector<CPathAStarNode> Neighbours = FindFreeNeighbourLeafs(CurrentNode);
+		for (CPathAStarNode NewNode : Neighbours)
+		{			
 			// We dont want to revisit nodes
 			if (!VisitedNodes.count(NewNode))
 			{
@@ -638,7 +645,7 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 		}
 	}
 
-	// If no neighbour was free, we're looking for the closest node in range
+	// STEP 2 - If no neighbour was free, we're looking for the closest node in range
 	// We're putting neighbouring nodes as long as they are in SearchRange, until we find one that is free.
 	// Priority queue ensures that we find the closest node to the given WorldLocation.
 	while (Pq.size() > 0)
@@ -651,19 +658,16 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 			if (!GetWorld()->LineTraceTestByChannel(WorldLocation, CurrentNode.WorldLocation, TraceChannel))
 			{
 				TreeID = CurrentNode.TreeID;
-				DrawDebugLine(GetWorld(), WorldLocation, CurrentNode.WorldLocation, FColor::Green, false, 1);
+				//DrawDebugLine(GetWorld(), WorldLocation, CurrentNode.WorldLocation, FColor::Green, false, 1);
 				return Tree;
 			}
-			DrawDebugLine(GetWorld(), WorldLocation, CurrentNode.WorldLocation, FColor::Red, false, 1);
+			//DrawDebugLine(GetWorld(), WorldLocation, CurrentNode.WorldLocation, FColor::Red, false, 1);
 		}
 
+		std::vector<CPathAStarNode> Neighbours = FindFreeNeighbourLeafs(CurrentNode);
 
-		std::vector<uint32> Neighbours = FindFreeNeighbourLeafs(CurrentNode.TreeID);
-
-		for (uint32 NewTreeID : Neighbours)
-		{
-			CPathAStarNode NewNode(NewTreeID);
-
+		for (CPathAStarNode NewNode : Neighbours)
+		{			
 			// We dont want to revisit nodes
 			if (!VisitedNodes.count(NewNode))
 			{
@@ -719,6 +723,17 @@ FVector ACPathVolume::GetOuterTreeWorldLocation(uint32 TreeID) const
 	FVector LocalCoords = LocalCoordsInt3FromOuterIndex(ExtractOuterIndex(TreeID));
 	LocalCoords *= GetVoxelSizeByDepth(0);
 	return StartPosition + LocalCoords;
+}
+
+inline CPathOctree* ACPathVolume::GetParentTree(uint32 TreeId)
+{
+	uint32 Depth = ExtractDepth(TreeId);
+	if (Depth)
+	{
+		ReplaceDepth(TreeId, Depth - 1);
+		return FindTreeByID(TreeId, Depth);
+	}
+	return nullptr;
 }
 
 
@@ -777,7 +792,7 @@ CPathOctree* ACPathVolume::FindNeighbourByID(uint32 TreeID, ENeighbourDirection 
 	return nullptr;
 }
 
-std::vector<uint32> ACPathVolume::FindFreeNeighbourLeafs(uint32 TreeID)
+std::vector<uint32> ACPathVolume::FindNeighbourLeafs(uint32 TreeID, bool MustBeFree)
 {
 	std::vector<uint32> FreeNeighbours;
 
@@ -791,11 +806,12 @@ std::vector<uint32> ACPathVolume::FindFreeNeighbourLeafs(uint32 TreeID)
 				FreeNeighbours.push_back(NeighbourID);
 			else if (Neighbour->Children)
 			{
-				FindFreeLeafsOnSide(Neighbour, NeighbourID, (ENeighbourDirection)LookupTable_OppositeSide[Direction], &FreeNeighbours);
+				FindLeafsOnSide(Neighbour, NeighbourID, (ENeighbourDirection)LookupTable_OppositeSide[Direction], &FreeNeighbours, MustBeFree);
 			}
+			else if(!MustBeFree)
+				FreeNeighbours.push_back(NeighbourID);
 		}
 	}
-
 
 	return FreeNeighbours;
 }
@@ -814,7 +830,7 @@ std::vector<CPathAStarNode> ACPathVolume::FindFreeNeighbourLeafs(CPathAStarNode&
 				FreeNeighbours.push_back(CPathAStarNode(NeighbourID, Neighbour->Data));
 			else if (Neighbour->Children)
 			{
-				FindFreeLeafsOnSide(Neighbour, NeighbourID, (ENeighbourDirection)LookupTable_OppositeSide[Direction], &FreeNeighbours);
+				FindLeafsOnSide(Neighbour, NeighbourID, (ENeighbourDirection)LookupTable_OppositeSide[Direction], &FreeNeighbours);
 			}
 		}
 	}
@@ -824,13 +840,13 @@ std::vector<CPathAStarNode> ACPathVolume::FindFreeNeighbourLeafs(CPathAStarNode&
 }
 
 
-void ACPathVolume::FindFreeLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector)
+void ACPathVolume::FindLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector, bool MustBeFree)
 {
 	uint32 TempDepthReached;
-	FindFreeLeafsOnSide(FindTreeByID(TreeID, TempDepthReached), TreeID, Side, Vector);
+	FindLeafsOnSide(FindTreeByID(TreeID, TempDepthReached), TreeID, Side, Vector, MustBeFree);
 }
 
-void ACPathVolume::FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector)
+void ACPathVolume::FindLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector, bool MustBeFree)
 {
 #if WITH_EDITOR
 	checkf(Tree->Children, TEXT("CPATH - FindAllLeafsOnSide, requested tree has no children"));
@@ -843,16 +859,16 @@ void ACPathVolume::FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighb
 		uint32 ChildTreeID = TreeID;
 		ReplaceChildIndexAndDepth(ChildTreeID, NewDepth, ChildIndex);
 		if (Child->Children)
-			FindFreeLeafsOnSide(Child, ChildTreeID, Side, Vector);
+			FindLeafsOnSide(Child, ChildTreeID, Side, Vector);
 		else
 		{
-			if (Child->GetIsFree())
+			if (Child->GetIsFree() || !MustBeFree)
 				Vector->push_back(ChildTreeID);
 		}
 	}
 }
 
-void ACPathVolume::FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<CPathAStarNode>* Vector)
+void ACPathVolume::FindLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourDirection Side, std::vector<CPathAStarNode>* Vector, bool MustBeFree)
 {
 #if WITH_EDITOR
 	checkf(Tree->Children, TEXT("CPATH - FindAllLeafsOnSide, requested tree has no children"));
@@ -865,26 +881,16 @@ void ACPathVolume::FindFreeLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighb
 		uint32 ChildTreeID = TreeID;
 		ReplaceChildIndexAndDepth(ChildTreeID, NewDepth, ChildIndex);
 		if (Child->Children)
-			FindFreeLeafsOnSide(Child, ChildTreeID, Side, Vector);
+			FindLeafsOnSide(Child, ChildTreeID, Side, Vector);
 		else
 		{
-			if (Child->GetIsFree())
+			if (Child->GetIsFree() || !MustBeFree)
 				Vector->push_back(CPathAStarNode(ChildTreeID, Child->Data));
 		}
 	}
 }
 
 
-inline CPathOctree* ACPathVolume::GetParentTree(uint32 TreeId)
-{
-	uint32 Depth = ExtractDepth(TreeId);
-	if (Depth)
-	{
-		ReplaceDepth(TreeId, Depth - 1);
-		return FindTreeByID(TreeId, Depth);
-	}
-	return nullptr;
-}
 
 inline uint32 ACPathVolume::GetFreeThreadID() const
 {
@@ -1016,7 +1022,7 @@ void ACPathVolume::GenerationUpdate()
 	}
 }
 
-void ACPathVolume::CalcFitness(CPathAStarNode& Node, FVector TargetLocation)
+void ACPathVolume::CalcFitness(CPathAStarNode& Node, FVector TargetLocation, int32 UserData)
 {
 	// Standard weithted A* Heuristic, f(n) = g(n) + e*h(n).   (e = 3.5f)
 	if (Node.PreviousNode)
@@ -1026,7 +1032,7 @@ void ACPathVolume::CalcFitness(CPathAStarNode& Node, FVector TargetLocation)
 	Node.FitnessResult = Node.DistanceSoFar + 3.5f * FVector::Distance(Node.WorldLocation, TargetLocation);
 }
 
-bool ACPathVolume::CheckAndUpdateTree(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth)
+bool ACPathVolume::RecheckOctreeAtDepth(CPathOctree* OctreeRef, FVector TreeLocation, uint32 Depth)
 {
 	bool IsFree = true;
 	for (auto Shape : TraceShapesByDepth[Depth])

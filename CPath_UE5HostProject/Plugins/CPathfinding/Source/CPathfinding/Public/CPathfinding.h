@@ -6,7 +6,7 @@
 #include "Modules/ModuleManager.h"
 
 
-class FCPathfindingModule : public IModuleInterface
+class CPATHFINDING_API FCPathfindingModule : public IModuleInterface
 {
 public:
 

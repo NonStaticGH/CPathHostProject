@@ -40,7 +40,7 @@ public:
 };
 
 // Class used to remember data needed to draw a debug voxel 
-class CPathVoxelDrawData
+class CPATHFINDING_API CPathVoxelDrawData
 {
 
 public:

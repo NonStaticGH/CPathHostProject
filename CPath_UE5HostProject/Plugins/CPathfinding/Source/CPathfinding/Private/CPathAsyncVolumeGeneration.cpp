@@ -122,7 +122,7 @@ void FCPathAsyncVolumeGenerator::RefreshTree(uint32 OuterIndex)
 bool FCPathAsyncVolumeGenerator::RefreshTreeRec(CPathOctree* OctreeRef, uint32 Depth, FVector TreeLocation)
 {
 
-	bool IsFree = VolumeRef->CheckAndUpdateTree(OctreeRef, TreeLocation, Depth);
+	bool IsFree = VolumeRef->RecheckOctreeAtDepth(OctreeRef, TreeLocation, Depth);
 
 	OctreeCountAtDepth[Depth]++;
 

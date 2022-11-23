@@ -17,12 +17,13 @@ CPathAStar::CPathAStar()
 {
 }
 
-CPathAStar::CPathAStar(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses, float TimeLimit)
+CPathAStar::CPathAStar(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses, int32 UserData, float TimeLimit)
 	:
 	Volume(VolumeRef),
 	PathStart(Start),
 	PathEnd(End),
 	Smoothing(SmoothingPasses),
+	UsrData(UserData),
 	SearchTimeLimit(TimeLimit)
 {
 }
@@ -32,7 +33,7 @@ CPathAStar::~CPathAStar()
 
 }
 
-CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses, float TimeLimit, TArray<CPathAStarNode>* RawNodes)
+CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses, int32 UserData, float TimeLimit, TArray<CPathAStarNode>* RawNodes)
 {
 	if (!IsValid(VolumeRef))
 	{
@@ -47,6 +48,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 
 	Volume = VolumeRef;
 	SearchTimeLimit = TimeLimit;
+	UsrData = UserData;
 	auto TimeStart = TIMENOW;
 
 	// time limit in miliseconds
@@ -116,7 +118,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 				// CalcFitness(NewNode); - this is inline and not virtual so in theory faster, but not extendable.
 				// Also from my testing, the speed difference between the two was unnoticeable at 150000 nodes processed.
 
-				VolumeRef->CalcFitness(NewTreeNode, TargetLocation);
+				VolumeRef->CalcFitness(NewTreeNode, TargetLocation, UserData);
 				VisitedNodes.insert(NewTreeNode);
 				Pq.push(NewTreeNode);
 			}
@@ -195,7 +197,7 @@ bool CPathAStar::FindPath()
 	RawPathNodes.Empty();
 	UserPath.Empty();
 
-	auto FoundPathEnd = FindPath(Volume, PathStart, PathEnd, Smoothing, SearchTimeLimit, &RawPathNodes);
+	auto FoundPathEnd = FindPath(Volume, PathStart, PathEnd, Smoothing, UsrData, SearchTimeLimit, &RawPathNodes);
 
 	if (FoundPathEnd)
 	{
@@ -289,7 +291,7 @@ void CPathAStar::SmoothenPath(CPathAStarNode* PathEndNode)
 	}
 }
 
-UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses, float TimeLimit)
+UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FVector StartLocation, FVector EndLocation, int SmoothingPasses, int32 UserData, float TimeLimit)
 {
 #if WITH_EDITOR
 	checkf(IsValid(Volume), TEXT("CPATH - FindPathAsync:::Volume was invalid"));
@@ -297,7 +299,7 @@ UCPathAsyncFindPath* UCPathAsyncFindPath::FindPathAsync(ACPathVolume* Volume, FV
 
 	UCPathAsyncFindPath* Instance = NewObject<UCPathAsyncFindPath>();
 	Instance->RunnableFindPath = new FCPathRunnableFindPath(Instance);
-	Instance->AStar = new CPathAStar(Volume, StartLocation, EndLocation, SmoothingPasses, TimeLimit);
+	Instance->AStar = new CPathAStar(Volume, StartLocation, EndLocation, SmoothingPasses, UserData, TimeLimit);
 	Instance->RegisterWithGameInstance(Volume->GetGameInstance());
 
 	return Instance;
