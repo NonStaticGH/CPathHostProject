@@ -62,7 +62,9 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 
 	// In case someome called FindPath on the same AStar instance
 	ProcessedNodes.clear();
-
+	SearchDuration = 0;
+	RawPathLength = 0;
+	
 
 	// Finding start and end node
 	uint32 TempID;
@@ -127,17 +129,24 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 		auto CurrDuration = TIMEDIFF(TimeStart, TIMENOW);
 		if (CurrDuration >= TimeLimitMS)
 		{
-			bStop = true;
 			FailReason = ECPathfindingFailReason::Timeout;
+			break;
 		}
+		if (bStop)
+			break;
 	}
 
-	// Pathfinidng has been interrupted due to premature thread kill, so we dont want to return an incomplete path
+	SearchDuration = TIMEDIFF(TimeStart, TIMENOW);
+	// Pathfinidng has been interrupted due to premature thread kill or timeout
 	if (bStop)
 	{
 		if (FailReason != Timeout)
 			FailReason = Unknown;
 
+		return nullptr;
+	}
+	else if (FailReason == Timeout)
+	{
 		return nullptr;
 	}
 
@@ -152,6 +161,7 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 			ProcessedNodes.back()->WorldLocation = End;
 			ProcessedNodes.back()->PreviousNode = FoundPathEnd;
 			FoundPathEnd = ProcessedNodes.back().get();
+			VolumeRef->CalcFitness(*FoundPathEnd, TargetLocation, UserData);
 		}
 
 		// For debugging
@@ -164,17 +174,19 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 				CurrNode = CurrNode->PreviousNode;
 			}
 		}
-
+		RawPathLength = FoundPathEnd->DistanceSoFar;
 		// Post processing to remove unnecessary nodes
 		for (uint32 i = 0; i < SmoothingPasses; i++)
 		{
 			SmoothenPath(FoundPathEnd);
 		}
+		SearchDuration = TIMEDIFF(TimeStart, TIMENOW);
 		FailReason = None;
 	}
 	else
 	{
 		FailReason = EndLocationUnreachable;
+		return nullptr;
 	}
 
 #ifdef LOG_PATHFINDERS

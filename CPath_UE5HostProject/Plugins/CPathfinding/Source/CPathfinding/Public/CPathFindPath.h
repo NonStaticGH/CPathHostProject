@@ -45,11 +45,16 @@ public:
 	// This is used by FindPath if it failed null.
 	ECPathfindingFailReason FailReason = None;
 
+	float SearchDuration = 0;
+
 	// The final usable path
 	TArray<FCPathNode> UserPath;
 
 	// The path before preprocessing
 	TArray<CPathAStarNode> RawPathNodes;
+
+	// Path length before smoothing is applied. If you're modifying the DistanceSoFar variable in CalcFitness function, this value will be impacted
+	float RawPathLength = -1;
 
 	// Cached FindPath parameters
 	FVector PathStart, PathEnd;

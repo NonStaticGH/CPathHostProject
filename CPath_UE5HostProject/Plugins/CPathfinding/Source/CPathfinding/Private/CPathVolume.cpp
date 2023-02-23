@@ -8,9 +8,12 @@
 #include <deque>
 #include <list>
 #include <unordered_set>
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "CPathDynamicObstacle.h"
 #include "CPathNode.h"
 #include "TimerManager.h"
+#include "CPathFindPath.h"
 #include "Engine/Selection.h"
 #include "GenericPlatform/GenericPlatformAtomics.h"
 
@@ -203,7 +206,7 @@ bool ACPathVolume::GenerateGraph()
 
 	UBoxComponent* tempBox = Cast<UBoxComponent>(GetRootComponent());
 	tempBox->UpdateOverlaps();
-
+	
 
 	float Divider = VoxelSize * FMath::Pow(2.f, OctreeDepth);
 
@@ -904,6 +907,84 @@ inline uint32 ACPathVolume::GetFreeThreadID() const
 	return 0;
 }
 
+void ACPathVolume::PerformRandomBenchmark(uint32 FindPathUserData, float FindPathTimeLimit)
+{
+	if (IsAsyncBenchmark)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Async Benchmark started, duration: %f seconds."), BenchmarkDurationSeconds);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Benchmark started, duration: %f seconds. This window will be frozen until completion..."), BenchmarkDurationSeconds);
+	}
+	
+	// Box for random start and end points
+	FBox Box = FBox::BuildAABB(GetActorLocation(), VolumeBox->GetScaledBoxExtent());
+	CPathAStar AStar;
+
+	int ResultCounter[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	double TotalPathLength = 0;
+	double TotalSuccesfulSearchDuration = 0;
+	double FailedRequestsDuration = 0;
+
+	// Performing find path searches 
+	auto StartTime = TIMENOW;
+	while (TIMEDIFF(StartTime, TIMENOW) < BenchmarkDurationSeconds*1000)
+	{
+		FVector PathStart = FMath::RandPointInBox(Box);
+		FVector PathEnd = FMath::RandPointInBox(Box);
+
+		AStar.FindPath(this, PathStart, PathEnd, 0, FindPathUserData, FindPathTimeLimit);
+
+		ResultCounter[AStar.FailReason]++;
+		if (AStar.FailReason == ECPathfindingFailReason::None)
+		{
+			TotalPathLength += AStar.RawPathLength;
+			TotalSuccesfulSearchDuration += AStar.SearchDuration;
+		}
+		else
+		{
+			FailedRequestsDuration += AStar.SearchDuration;
+		}
+
+	}
+	int VolumeInvalid = ResultCounter[VolumeNotValid] + ResultCounter[VolumeNotGenerated];
+	int WrongLocation = ResultCounter[WrongStartLocation] + ResultCounter[WrongEndLocation];
+	int RecommendedSampleSize = NodeCount[0] * NodeCount[1] * NodeCount[2]/2 * FMath::Pow(8, FMath::Max(OctreeDepth-2, -1));
+
+
+	UE_LOG(LogTemp, Warning, TEXT("Benchmark finished."));
+	if(RecommendedSampleSize > ResultCounter[0])
+		UE_LOG(LogTemp, Warning, TEXT("WARNING: Not enough succesful searches for reliable result. Recommended sample size: %d, received: %d"), RecommendedSampleSize, ResultCounter[0]);
+
+
+	// Logging result to the editor
+	UE_LOG(LogTemp, Warning, TEXT("SCORE = %f, Successes = %d, Overtimes = %d, WrongLocation = %d, distance = %f, SuccessTime = %f, FailedTime = %f, Unreachable = %d, UnknownError = %d, VolumeInvalid = %d"),
+		(float)(TotalPathLength/TotalSuccesfulSearchDuration/ (double)VoxelSize), ResultCounter[0], ResultCounter[Timeout], WrongLocation, TotalPathLength, TotalSuccesfulSearchDuration/1000.f, FailedRequestsDuration/1000.f,
+		ResultCounter[EndLocationUnreachable], ResultCounter[Unknown], VolumeInvalid);
+
+
+	//Saving result to a file
+	FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()) + TEXT("/BenchmarkResults.txt");
+	FString BenchmarkResult = FString::Printf(TEXT("\n%s,%s,%f,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%d,%f,%f,%d,%d,%d,%f,%d,%d"),
+		*BenchmarkName, *GetWorld()->GetMapName(), (float)(TotalPathLength/TotalSuccesfulSearchDuration/(double)VoxelSize), ResultCounter[0], VolumeInvalid, ResultCounter[Timeout], WrongLocation, ResultCounter[EndLocationUnreachable],
+		ResultCounter[Unknown], BenchmarkDurationSeconds, TotalSuccesfulSearchDuration / 1000.f, FailedRequestsDuration / 1000.f, TotalPathLength, VoxelSize, OctreeDepth, AgentRadius, AgentHalfHeight, BenchmarkFindPathUserData, TotalNodeCount, IsAsyncBenchmark, DynamicObstaclesUpdateRate, MaxGenerationThreads, RecommendedSampleSize);
+
+	
+	if (!FPaths::FileExists(FilePath))
+	{
+		FString BenchmarkFileStart = TEXT("benchmark_name,map_name,score,success,invalid_volume,timeout,wrong_location,unreachable,unknown_error,benchmark_duration,success_duration,failed_duration,success_paths_distance,voxel_size,octree_depth,agent_radius,agent_half_height,find_path_user_data,graph_node_count,is_async,dynamic_update_rate,worker_threads,min_recommended_success");
+		FFileHelper::SaveStringToFile(BenchmarkFileStart, *FilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+	}
+
+	if (RecommendedSampleSize < ResultCounter[0] || SaveBenchmarksWithUnreliableResults)
+		FFileHelper::SaveStringToFile(BenchmarkResult, *FilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+	
+
+}
+
+
+
 void ACPathVolume::CleanFinishedGenerators()
 {
 	for (auto Generator = GeneratorThreads.begin(); Generator != GeneratorThreads.end(); Generator++)
@@ -940,6 +1021,14 @@ void ACPathVolume::InitialGenerationUpdate()
 
 		CleanFinishedGenerators();
 		GetWorld()->GetTimerManager().ClearTimer(GenerationTimerHandle);
+
+		// Run benchmark before modifying the graph
+		if (PerformBenchmarkAfterGeneration)
+		{
+			PerformRandomBenchmark(BenchmarkFindPathUserData, BenchmarkFindPathTimeLimit);
+		}
+
+
 		if (DynamicObstaclesUpdateRate > 0)
 			GetWorld()->GetTimerManager().SetTimer(GenerationTimerHandle, this, &ACPathVolume::GenerationUpdate, 1.f / DynamicObstaclesUpdateRate, true);
 	}

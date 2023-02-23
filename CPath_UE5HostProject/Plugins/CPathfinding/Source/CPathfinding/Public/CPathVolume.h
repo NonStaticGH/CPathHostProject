@@ -150,6 +150,38 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CPath|Info")
 		bool InitialGenerationFinished = false;
 
+	// WARNING: This will freeze the game for the benchmark duration!
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+		bool PerformBenchmarkAfterGeneration = false;
+
+	// Benchmark duration in seconds
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+		float BenchmarkDurationSeconds = 20.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+		int BenchmarkFindPathUserData = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+		float BenchmarkFindPathTimeLimit = 0.1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+		FString BenchmarkName = FString("DefaultName");
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+		bool SaveBenchmarkResultToFile = true;
+
+	// if sample size of successful searches is too low, don't save the results to file
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark", meta = (EditCondition = "SaveBenchmarkResultToFile==true"))
+		bool SaveBenchmarksWithUnreliableResults = false;
+
+	// Not used for now, async benchmark does not provide reliable results
+	//UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
+	bool IsAsyncBenchmark = false;
+
+
+
+
+
 	// Shapes to use when checking if voxel is free or not
 	std::vector<std::vector<FCollisionShape>> TraceShapesByDepth;
 
@@ -316,6 +348,7 @@ protected:
 
 	inline uint32 GetFreeThreadID() const;
 
+	void PerformRandomBenchmark(uint32 UserData = 0, float TimeLimit = 0.2);
 
 	// ----- Lookup tables-------
 	static const FVector LookupTable_ChildPositionOffsetMaskByIndex[8];
