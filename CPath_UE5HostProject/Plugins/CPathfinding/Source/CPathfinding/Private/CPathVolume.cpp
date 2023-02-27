@@ -14,10 +14,6 @@
 #include "Engine/Selection.h"
 #include "GenericPlatform/GenericPlatformAtomics.h"
 
-
-
-
-
 ACPathVolume::ACPathVolume()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -28,14 +24,11 @@ ACPathVolume::ACPathVolume()
 
 #if WITH_EDITOR
 
-
 #endif
 	DepthsToDraw = { true, true, true, true };
 
-
 	FVector Location = GetActorLocation() - VolumeBox->GetScaledBoxExtent() + VoxelSize;
 	DrawDebugBox(GetWorld(), Location, FVector(VoxelSize), FColor::White, true);
-
 }
 
 void ACPathVolume::DebugDrawNeighbours(FVector WorldLocation)
@@ -43,19 +36,18 @@ void ACPathVolume::DebugDrawNeighbours(FVector WorldLocation)
 	uint32 LeafID;
 	if (FindLeafByWorldLocation(WorldLocation, LeafID))
 	{
-		DrawDebugBox(GetWorld(), WorldLocationFromTreeID(LeafID), FVector(GetVoxelSizeByDepth(ExtractDepth(LeafID)) / 2.f), FColor::Emerald, false, 5, 10, DebugBoxesThickness*1.3);
+		DrawDebugBox(GetWorld(), WorldLocationFromTreeID(LeafID), FVector(GetVoxelSizeByDepth(ExtractDepth(LeafID)) / 2.f), FColor::Emerald, false, 5, 10, DebugBoxesThickness * 1.3);
 		auto Neighbours = FindNeighbourLeafs(LeafID, true);
 
 		for (auto N : Neighbours)
 		{
-			DrawDebugBox(GetWorld(), WorldLocationFromTreeID(N), FVector(GetVoxelSizeByDepth(ExtractDepth(N)) / 2.f), FColor::Yellow, false, 5, 0U, DebugBoxesThickness*1.4);
+			DrawDebugBox(GetWorld(), WorldLocationFromTreeID(N), FVector(GetVoxelSizeByDepth(ExtractDepth(N)) / 2.f), FColor::Yellow, false, 5, 0U, DebugBoxesThickness * 1.4);
 		}
 	}
 }
 
 bool ACPathVolume::DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf, float Duration, FColor Color, CPathVoxelDrawData* OutDrawData)
 {
-
 	uint32 Depth;
 	float Thickness = DebugBoxesThickness;
 	auto Tree = FindTreeByID(TreeID, Depth);
@@ -77,7 +69,6 @@ bool ACPathVolume::DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf, float Durat
 			Thickness *= 1.5;
 		}
 	}
-
 
 	bool Persistent = false;
 	if (Duration < 0)
@@ -142,11 +133,8 @@ void ACPathVolume::DrawDebugNodesAroundLocation(FVector WorldLocation, int Voxel
 	CPathAStarNode StartNode(OriginTreeID);
 	StartNode.FitnessResult = 0;
 
-
 	// Ordered by neighbours, first come first served
 	IndexList.push_back(StartNode.TreeID);
-
-
 
 	while (!IndexList.empty() && VoxelLimit > 0)
 	{
@@ -159,11 +147,9 @@ void ACPathVolume::DrawDebugNodesAroundLocation(FVector WorldLocation, int Voxel
 			PreviousDrawAroundLocationData.push_back(DrawData);
 		}
 
-
 		std::vector<uint32> Neighbours = FindNeighbourLeafs(CurrID, !DrawOccupied);
 		for (uint32 NewTreeID : Neighbours)
 		{
-
 			// We dont want to redraw nodes
 			if (!VisitedIndexes.count(NewTreeID))
 			{
@@ -185,7 +171,6 @@ void ACPathVolume::DrawDebugPath(const TArray<FCPathNode>& Path, float Duration,
 	}
 }
 
-
 void ACPathVolume::BeginPlay()
 {
 	Super::BeginPlay();
@@ -204,7 +189,6 @@ bool ACPathVolume::GenerateGraph()
 	UBoxComponent* tempBox = Cast<UBoxComponent>(GetRootComponent());
 	tempBox->UpdateOverlaps();
 
-
 	float Divider = VoxelSize * FMath::Pow(2.f, OctreeDepth);
 
 	NodeCount[0] = FMath::CeilToInt(VolumeBox->GetScaledBoxExtent().X * 2.0 / Divider);
@@ -214,10 +198,8 @@ bool ACPathVolume::GenerateGraph()
 	checkf(OctreeDepth <= MAX_DEPTH && OctreeDepth >= 0, TEXT("CPATH - Graph Generation:::OctreeDepth must be within 0 and MAX_DEPTH"));
 	//checkf(AgentShape == ECollisionShapeType::Capsule || AgentShape == ECollisionShapeType::Sphere || AgentShape == ECollisionShapeType::Box, TEXT("CPATH - Graph Generation:::Agent shape must be Capsule, Sphere or Box"));
 
-
 	for (int i = 0; i <= OctreeDepth; i++)
 	{
-
 		LookupTable_VoxelSizeByDepth[i] = VoxelSize * FMath::Pow(2.f, OctreeDepth - i);
 		TraceShapesByDepth.emplace_back();
 		TraceShapesByDepth.back().push_back(FCollisionShape::MakeBox(FVector(GetVoxelSizeByDepth(i) / 2.f)));
@@ -264,7 +246,6 @@ bool ACPathVolume::GenerateGraph()
 		ThreadIDs[1] = false;
 	}
 
-
 	for (int CurrentThread = 0; CurrentThread < MaxGenerationThreads; CurrentThread++)
 	{
 		uint32 LastIndex = NodesPerThread * (CurrentThread + 1);
@@ -284,7 +265,6 @@ bool ACPathVolume::GenerateGraph()
 		{
 			GeneratorThreads.pop_back();
 		}
-
 	}
 	OuterIndexesPerThread = 5 * (5 + OctreeDepth) * FMath::Pow(8.f, MAX_DEPTH - OctreeDepth);
 	// Setting timer for dynamic generation and garbage collection
@@ -305,7 +285,6 @@ void ACPathVolume::BeginDestroy()
 	delete[] Octrees;
 }
 
-
 inline FVector ACPathVolume::WorldLocationToLocalCoordsInt3(FVector WorldLocation) const
 {
 	FVector RelativePos = WorldLocation - StartPosition;
@@ -313,7 +292,6 @@ inline FVector ACPathVolume::WorldLocationToLocalCoordsInt3(FVector WorldLocatio
 	return FVector(FMath::RoundToFloat(RelativePos.X),
 		FMath::RoundToFloat(RelativePos.Y),
 		FMath::RoundToFloat(RelativePos.Z));
-
 }
 
 inline int ACPathVolume::WorldLocationToIndex(FVector WorldLocation) const
@@ -354,7 +332,7 @@ inline uint32 ACPathVolume::CreateTreeID(uint32 Index, uint32 Depth) const
 {
 #if WITH_EDITOR
 	checkf(Depth <= MAX_DEPTH, TEXT("CPATH - Graph Generation:::DEPTH can be up to MAX_DEPTH"));
-#endif		
+#endif
 	Index |= Depth << DEPTH_0_BITS;
 
 	return Index;
@@ -410,7 +388,7 @@ inline FVector ACPathVolume::WorldLocationFromTreeID(uint32 TreeID) const
 
 	FVector CurrPosition = StartPosition + GetVoxelSizeByDepth(0) * LocalCoordsInt3FromOuterIndex(OuterIndex);
 
-	for (uint32 CurrDepth = 1; CurrDepth <= Depth; CurrDepth++)
+	for (uint32 CurrDepth = 1; CurrDepth < Depth; CurrDepth++)
 	{
 		CurrPosition += GetVoxelSizeByDepth(CurrDepth) * 0.5f * LookupTable_ChildPositionOffsetMaskByIndex[ExtractChildIndex(TreeID, CurrDepth)];
 	}
@@ -484,7 +462,6 @@ inline CPathOctree* ACPathVolume::FindTreeByID(uint32 TreeID)
 {
 	uint32 Depth = ExtractDepth(TreeID);
 	CPathOctree* CurrTree = &Octrees[ExtractOuterIndex(TreeID)];
-
 
 	for (uint32 CurrDepth = 1; CurrDepth <= Depth; CurrDepth++)
 	{
@@ -589,17 +566,16 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 	std::priority_queue<CPathAStarNode, std::deque<CPathAStarNode>, std::greater<CPathAStarNode>> Pq;
 	std::priority_queue<CPathAStarNode, std::deque<CPathAStarNode>, std::greater<CPathAStarNode>> PqNeighbours;
 
-
 	CPathAStarNode StartNode(OriginTreeID);
 	StartNode.FitnessResult = 0;
 	VisitedNodes.insert(StartNode);
 
-	// STEP 1 - considering StartNode neighbours only, we dont check range cause neighbours take priority 
+	// STEP 1 - considering StartNode neighbours only, we dont check range cause neighbours take priority
 	// (its faster and solves almost all cases without needing to go to the other queue)
 
 	std::vector<CPathAStarNode> StartNeighbours = FindFreeNeighbourLeafs(StartNode);
 	for (CPathAStarNode NewNode : StartNeighbours)
-	{		
+	{
 		NewNode.WorldLocation = WorldLocationFromTreeID(NewNode.TreeID);
 
 		// Fitness function here is distance from WorldLocation - The voxel extent, cause we want distance to the border of the voxel, not to it's center
@@ -627,7 +603,7 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 
 		std::vector<CPathAStarNode> Neighbours = FindFreeNeighbourLeafs(CurrentNode);
 		for (CPathAStarNode NewNode : Neighbours)
-		{			
+		{
 			// We dont want to revisit nodes
 			if (!VisitedNodes.count(NewNode))
 			{
@@ -667,7 +643,7 @@ CPathOctree* ACPathVolume::FindClosestFreeLeaf(FVector WorldLocation, uint32& Tr
 		std::vector<CPathAStarNode> Neighbours = FindFreeNeighbourLeafs(CurrentNode);
 
 		for (CPathAStarNode NewNode : Neighbours)
-		{			
+		{
 			// We dont want to revisit nodes
 			if (!VisitedNodes.count(NewNode))
 			{
@@ -699,7 +675,6 @@ CPathOctree* ACPathVolume::FindLeafRecursive(FVector RelativeLocation, uint32& T
 		ChildIndex += 2;
 	if (RelativeLocation.Y > 0.f)
 		ChildIndex += 1;
-
 
 	ReplaceChildIndex(TreeID, CurrentDepth, ChildIndex);
 
@@ -736,11 +711,8 @@ inline CPathOctree* ACPathVolume::GetParentTree(uint32 TreeId)
 	return nullptr;
 }
 
-
-
 CPathOctree* ACPathVolume::FindNeighbourByID(uint32 TreeID, ENeighbourDirection Direction, uint32& NeighbourID)
 {
-
 	// Depth 0, getting neighbour from Octrees
 	uint32 Depth = ExtractDepth(TreeID);
 	if (Depth == 0)
@@ -808,7 +780,7 @@ std::vector<uint32> ACPathVolume::FindNeighbourLeafs(uint32 TreeID, bool MustBeF
 			{
 				FindLeafsOnSide(Neighbour, NeighbourID, (ENeighbourDirection)LookupTable_OppositeSide[Direction], &FreeNeighbours, MustBeFree);
 			}
-			else if(!MustBeFree)
+			else if (!MustBeFree)
 				FreeNeighbours.push_back(NeighbourID);
 		}
 	}
@@ -835,10 +807,8 @@ std::vector<CPathAStarNode> ACPathVolume::FindFreeNeighbourLeafs(CPathAStarNode&
 		}
 	}
 
-
 	return FreeNeighbours;
 }
-
 
 void ACPathVolume::FindLeafsOnSide(uint32 TreeID, ENeighbourDirection Side, std::vector<uint32>* Vector, bool MustBeFree)
 {
@@ -890,8 +860,6 @@ void ACPathVolume::FindLeafsOnSide(CPathOctree* Tree, uint32 TreeID, ENeighbourD
 	}
 }
 
-
-
 inline uint32 ACPathVolume::GetFreeThreadID() const
 {
 	for (int ID = 0; ID < 64; ID++)
@@ -914,7 +882,6 @@ void ACPathVolume::CleanFinishedGenerators()
 			Generator = GeneratorThreads.erase(Generator);
 		}
 	}
-
 }
 
 void ACPathVolume::InitialGenerationUpdate()
@@ -929,7 +896,6 @@ void ACPathVolume::InitialGenerationUpdate()
 			for (int Depth = 0; Depth <= OctreeDepth; Depth++)
 			{
 				OctreeCountAtDepth[Depth] += Generator->get()->OctreeCountAtDepth[Depth];
-
 			}
 		}
 		for (int Depth = 0; Depth <= OctreeDepth; Depth++)
@@ -937,13 +903,11 @@ void ACPathVolume::InitialGenerationUpdate()
 			TotalNodeCount += OctreeCountAtDepth[Depth];
 		}
 
-
 		CleanFinishedGenerators();
 		GetWorld()->GetTimerManager().ClearTimer(GenerationTimerHandle);
 		if (DynamicObstaclesUpdateRate > 0)
 			GetWorld()->GetTimerManager().SetTimer(GenerationTimerHandle, this, &ACPathVolume::GenerationUpdate, 1.f / DynamicObstaclesUpdateRate, true);
 	}
-
 }
 
 void ACPathVolume::GenerationUpdate()
@@ -954,14 +918,11 @@ void ACPathVolume::GenerationUpdate()
 	// Garbage collecting generators that finished their job
 	CleanFinishedGenerators();
 
-
-
 	// We skip this update if generation from previous update is still running
-	// This can be the cause if we set DynamicObstaclesUpdateRate too high, or when it's initial generation, 
+	// This can be the cause if we set DynamicObstaclesUpdateRate too high, or when it's initial generation,
 	// or if there were a lot of pathfinding requests and generators are waiting for them to finish.
 	if (GeneratorsRunning.load() == 0 && TrackedDynamicObstacles.size())
 	{
-
 		//Drawing previously updated trees
 		/*for (auto TreeID : TreesToRegenerate)
 		{
@@ -991,7 +952,6 @@ void ACPathVolume::GenerationUpdate()
 		// In case there is a lot of trees to update, we split the work into multiple threads to make it faster
 		if (TreesToRegenerate.size())
 		{
-
 			uint32 ThreadCount = FMath::Min(FMath::Min(FPlatformMisc::NumberOfCores(), (int)TreesToRegenerate.size() / OuterIndexesPerThread), MaxGenerationThreads);
 			ThreadCount = FMath::Max(ThreadCount, (uint32)1);
 			uint32 NodesPerThread = (uint32)TreesToRegenerate.size() / ThreadCount;
@@ -1044,7 +1004,7 @@ bool ACPathVolume::RecheckOctreeAtDepth(CPathOctree* OctreeRef, FVector TreeLoca
 		}
 	}
 
-	// This is mandatory, as AStar only considers nodes that are free. 
+	// This is mandatory, as AStar only considers nodes that are free.
 	OctreeRef->SetIsFree(IsFree);
 	return IsFree;
 }
@@ -1060,7 +1020,6 @@ const FVector ACPathVolume::LookupTable_ChildPositionOffsetMaskByIndex[8] = {
 	{1, -1, 1},
 	{1, 1, 1}
 };
-
 
 const FVector ACPathVolume::LookupTable_NeighbourOffsetByDirection[6] = {
 	{0, -1, 0},
