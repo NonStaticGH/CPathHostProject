@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "HAL/Event.h"
 #include "WorldCollision.h"
 #include <memory>
 #include <chrono>
@@ -17,13 +18,14 @@
 #include "CPathAsyncVolumeGeneration.h"
 #include "CPathVolume.generated.h"
 
+class ACPathCore;
 
 UCLASS()
 class CPATHFINDING_API ACPathVolume : public AActor
 {
 	GENERATED_BODY()
 
-		friend class FCPathAsyncVolumeGenerator;
+	friend class FCPathAsyncVolumeGenerator;
 	friend class UCPathDynamicObstacle;
 public:
 	ACPathVolume();
@@ -194,6 +196,7 @@ protected:
 
 	CPathOctree* Octrees = nullptr;
 
+	static ACPathCore* CoreInstance;
 
 public:
 
@@ -268,8 +271,12 @@ public:
 	// Volume is not safe to access as long as this is not 0, pathfinders should wait till this is 0
 	std::atomic_int GeneratorsRunning = 0;
 
+	// Wake up call for pathfinding threads waiting for generation to finish
+	FEvent* GenerationFinishedSemaphore = nullptr;
+
 	// Volume wont start generating as long as this is not 0
 	std::atomic_int PathfindersRunning = 0;
+	std::atomic_int PathfindersWaiting = 0;
 
 	// This is for other threads to check if graph is accessible
 	std::atomic_bool InitialGenerationCompleteAtom = false;
@@ -286,7 +293,6 @@ public:
 	// Returns true if drawn, false otherwise
 	bool DrawDebugVoxel(uint32 TreeID, bool DrawIfNotLeaf = true, float Duration = 0, FColor Color = FColor::Green, CPathVoxelDrawData* OutDrawData = nullptr);
 	void DrawDebugVoxel(const CPathVoxelDrawData& DrawData, float Duration) const;
-
 
 protected:
 

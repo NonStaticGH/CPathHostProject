@@ -3,11 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "CPathDefines.h"
 #include "CPathNode.generated.h"
 
 /**
  *
  */
+
 
  // Internal class used while generating path
 class CPATHFINDING_API CPathAStarNode
@@ -68,7 +70,7 @@ public:
 
 
 USTRUCT(BlueprintType)
-struct FCPathNode
+struct CPATHFINDING_API FCPathNode
 {
 	GENERATED_BODY()
 
@@ -88,3 +90,45 @@ struct FCPathNode
 
 
 };
+
+// Data returned by FindPath call
+USTRUCT()
+struct CPATHFINDING_API FCPathResult
+{
+	GENERATED_BODY()
+
+	friend class FCPathfindingThread;
+
+	ECPathfindingFailReason FailReason = Unknown;
+	float SearchDuration = 0;
+
+	// THE final usable path.
+	TArray<FCPathNode> UserPath;
+	float UserPathLength = 0;
+
+	// The raw path with Octree data before any preprocessing. By default this is empty. 
+	// To get this data, set RequestRawPath to true in the FindPath call
+	TArray<CPathAStarNode> RawPathNodes;
+	float RawPathLength = 0;
+};
+
+
+DECLARE_DELEGATE_OneParam(PathResultDelegate, FCPathResult&);
+
+
+// Struct used to save parameters for a FindPath call
+struct CPATHFINDING_API FCPathRequest
+{
+	PathResultDelegate OnPathFound;
+	class ACPathVolume* VolumeRef;
+	FVector Start;
+	FVector End;
+	uint32 SmoothingPasses;
+	int32 UserData;
+	float TimeLimit;
+	FCPathResult* Result;
+	bool RequestRawPath;
+	bool RequestUserPath;
+};
+
+

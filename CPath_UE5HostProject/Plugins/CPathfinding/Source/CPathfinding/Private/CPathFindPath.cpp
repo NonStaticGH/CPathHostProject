@@ -13,6 +13,7 @@
 #include "Engine/World.h"
 
 
+
 CPathAStar::CPathAStar()
 {
 }
@@ -195,6 +196,170 @@ CPathAStarNode* CPathAStar::FindPath(ACPathVolume* VolumeRef, FVector Start, FVe
 #endif
 
 	return FoundPathEnd;
+}
+
+ECPathfindingFailReason CPathAStar::FindPath(ACPathVolume* VolumeRef, FCPathResult* Result, FVector Start, FVector End, uint32 SmoothingPasses, int32 UserData, float TimeLimit, bool RequestRawPath, bool RequestUserPath)
+{
+#if WITH_EDITOR
+	checkf(Result != nullptr, TEXT("CPATH - FindPath:::The result struct was nullptr"));
+#endif
+
+	if (!IsValid(VolumeRef))
+	{
+		return VolumeNotValid;
+		
+	}
+	if (!VolumeRef->InitialGenerationCompleteAtom.load())
+	{
+		return VolumeNotGenerated;
+	}
+
+	Volume = VolumeRef;
+	SearchTimeLimit = TimeLimit;
+	UsrData = UserData;
+	auto TimeStart = TIMENOW;
+
+	// time limit in miliseconds
+	double TimeLimitMS = SearchTimeLimit * 1000;
+
+	// The A* priority queue
+	std::priority_queue<CPathAStarNode, std::deque<CPathAStarNode>, std::greater<CPathAStarNode>> Pq;
+
+	// Nodes visited OR added to priority queue
+	std::unordered_set<CPathAStarNode, CPathAStarNode::Hash> VisitedNodes;
+
+	// In case called FindPath on the same AStar instance
+	ProcessedNodes.clear();
+	SearchDuration = 0;
+	RawPathLength = 0;
+
+
+	// Finding start and end node
+	uint32 TempID;
+	if (!Volume->FindClosestFreeLeaf(Start, TempID))
+	{
+		return WrongStartLocation;
+		
+	}
+
+	CPathAStarNode StartNode(TempID);
+	StartNode.WorldLocation = Start;
+
+	if (!Volume->FindClosestFreeLeaf(End, TempID))
+	{
+		return WrongEndLocation;
+	}
+
+	// Initializing priority queue
+	CPathAStarNode TargetNode(TempID);
+	TargetLocation = Volume->WorldLocationFromTreeID(TargetNode.TreeID);
+	TargetNode.WorldLocation = TargetLocation;
+	CalcFitness(TargetNode);
+	CalcFitness(StartNode);
+	Pq.push(StartNode);
+	VisitedNodes.insert(StartNode);
+	CPathAStarNode* FoundPathEnd = nullptr;
+
+	// A* loop
+	while (Pq.size() > 0 && !bStop)
+	{
+		CPathAStarNode CurrentNode = Pq.top();
+		Pq.pop();
+		ProcessedNodes.push_back(std::make_unique<CPathAStarNode>(CurrentNode));
+
+		if (CurrentNode == TargetNode)
+		{
+			FoundPathEnd = ProcessedNodes.back().get();
+			break;
+		}
+
+		std::vector<CPathAStarNode> Neighbours = VolumeRef->FindFreeNeighbourLeafs(CurrentNode);
+		for (CPathAStarNode NewTreeNode : Neighbours)
+		{
+
+			if (!VisitedNodes.count(NewTreeNode))
+			{
+				NewTreeNode.PreviousNode = ProcessedNodes.back().get();
+				NewTreeNode.WorldLocation = Volume->WorldLocationFromTreeID(NewTreeNode.TreeID);
+
+				// CalcFitness(NewNode); - this is inline and not virtual so in theory faster, but not extendable.
+				// Also from my testing, the speed difference between the two was unnoticeable at 150000 nodes processed.
+
+				VolumeRef->CalcFitness(NewTreeNode, TargetLocation, UserData);
+				VisitedNodes.insert(NewTreeNode);
+				Pq.push(NewTreeNode);
+			}
+		}
+
+		auto CurrDuration = TIMEDIFF(TimeStart, TIMENOW);
+		if (CurrDuration >= TimeLimitMS)
+		{
+			FailReason = ECPathfindingFailReason::Timeout;
+			break;
+		}
+	}
+
+	SearchDuration = TIMEDIFF(TimeStart, TIMENOW);
+	Result->SearchDuration = SearchDuration;
+	// Pathfinidng has been interrupted due to premature thread kill or timeout
+	if (bStop)
+	{
+		if (FailReason != Timeout)
+			return Unknown;
+	}
+	else if (FailReason == Timeout)
+	{
+		return Timeout;
+	}
+
+
+	if (FoundPathEnd)
+	{
+		// Adding last node that exactly reflects user's requested location
+		uint32 LastTreeID;
+		if (Volume->FindLeafByWorldLocation(End, LastTreeID, false))
+		{
+			ProcessedNodes.push_back(std::make_unique<CPathAStarNode>(CPathAStarNode(LastTreeID)));
+			ProcessedNodes.back()->WorldLocation = End;
+			ProcessedNodes.back()->PreviousNode = FoundPathEnd;
+			FoundPathEnd = ProcessedNodes.back().get();
+			VolumeRef->CalcFitness(*FoundPathEnd, TargetLocation, UserData);
+		}
+
+		// For debugging
+		if (RequestRawPath)
+		{
+			auto CurrNode = FoundPathEnd;
+			while (CurrNode)
+			{
+				Result->RawPathNodes.Add(*CurrNode);
+				CurrNode = CurrNode->PreviousNode;
+			}
+		}
+		RawPathLength = FoundPathEnd->DistanceSoFar;
+		// Post processing to remove unnecessary nodes
+		for (uint32 i = 0; i < SmoothingPasses; i++)
+		{
+			SmoothenPath(FoundPathEnd);
+		}
+		SearchDuration = TIMEDIFF(TimeStart, TIMENOW);
+		FailReason = None;
+	}
+	else
+	{
+		return EndLocationUnreachable;
+	}
+
+#ifdef LOG_PATHFINDERS
+	auto CurrDuration = TIMEDIFF(TimeStart, TIMENOW);
+	UE_LOG(LogTemp, Warning, TEXT("FindPath:  time= %lfms  NodesVisited= %d  NodesProcessed= %d"), CurrDuration, VisitedNodes.size(), ProcessedNodes.size());
+#endif
+
+	if (RequestUserPath)
+	{
+		TransformToUserPath(FoundPathEnd, Result->UserPath);
+	}
+	return None;
 }
 
 bool CPathAStar::FindPath()

@@ -14,12 +14,13 @@
 #include "CPathNode.h"
 #include "TimerManager.h"
 #include "CPathFindPath.h"
+#include "CPathCore.h"
 #include "Engine/Selection.h"
 #include "GenericPlatform/GenericPlatformAtomics.h"
 
 
 
-
+ACPathCore* ACPathVolume::CoreInstance = nullptr;
 
 ACPathVolume::ACPathVolume()
 {
@@ -194,6 +195,9 @@ void ACPathVolume::BeginPlay()
 	Super::BeginPlay();
 
 	VolumeBox->SetCollisionResponseToChannel(TraceChannel, ECR_Ignore);
+	GenerationFinishedSemaphore = FGenericPlatformProcess::GetSynchEventFromPool();
+
+	CoreInstance = ACPathCore::GetInstance(GetWorld());
 
 	if (GenerateOnBeginPlay)
 		GenerateGraph();
@@ -257,7 +261,7 @@ bool ACPathVolume::GenerateGraph()
 		ThreadCount = FPlatformMisc::NumberOfCores() - 1;*/
 	if (MaxGenerationThreads <= 0)
 		MaxGenerationThreads = FPlatformMisc::NumberOfCores() - 1;
-
+	
 	MaxGenerationThreads = FMath::Min(MaxGenerationThreads, 31);
 
 	uint32 NodesPerThread = OuterNodeCount / MaxGenerationThreads;
@@ -298,14 +302,39 @@ bool ACPathVolume::GenerateGraph()
 void ACPathVolume::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+#if WITH_EDITOR
+	checkf(GeneratorsRunning.load() >= 0, TEXT("CPATH - Volume Tick:::Generators running was negative!!"));
+	checkf(GenerationFinishedSemaphore, TEXT("CPATH - Volume Tick:::GenerationFinishedSemaphore is invalid!!"));
+#endif
+
+	if (GeneratorsRunning.load() == 0)
+	{
+		if (GenerationFinishedSemaphore && PathfindersWaiting.load() > 0 && InitialGenerationFinished)
+		{
+			GenerationFinishedSemaphore->Trigger();
+		}
+	}
+
 }
 
 void ACPathVolume::BeginDestroy()
 {
+	if (IsValid(CoreInstance))
+	{
+		CoreInstance->StopAndDeleteThreads();
+		if (!CoreInstance->IsActorBeingDestroyed())
+		{
+			if(CoreInstance->IsValidLowLevel())
+				CoreInstance->Destroy();
+		}
+			
+	}
+	CoreInstance = nullptr;
 	Super::BeginDestroy();
-
+	
 	GeneratorThreads.clear();
 	delete[] Octrees;
+	FGenericPlatformProcess::ReturnSynchEventToPool(GenerationFinishedSemaphore);
 }
 
 
@@ -950,7 +979,7 @@ void ACPathVolume::PerformRandomBenchmark(uint32 FindPathUserData, float FindPat
 	}
 	int VolumeInvalid = ResultCounter[VolumeNotValid] + ResultCounter[VolumeNotGenerated];
 	int WrongLocation = ResultCounter[WrongStartLocation] + ResultCounter[WrongEndLocation];
-	int RecommendedSampleSize = NodeCount[0] * NodeCount[1] * NodeCount[2]/2 * FMath::Pow(8, FMath::Max(OctreeDepth-2, -1));
+	int RecommendedSampleSize = NodeCount[0] * NodeCount[1] * NodeCount[2]/2 * FMath::Pow(8.0f, (float)FMath::Max(OctreeDepth-2, -1));
 
 
 	UE_LOG(LogTemp, Warning, TEXT("Benchmark finished."));
@@ -965,7 +994,7 @@ void ACPathVolume::PerformRandomBenchmark(uint32 FindPathUserData, float FindPat
 
 
 	//Saving result to a file
-	FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()) + TEXT("/BenchmarkResults.txt");
+	FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()) + TEXT("/BenchmarkResults.csv");
 	FString BenchmarkResult = FString::Printf(TEXT("\n%s,%s,%f,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%d,%f,%f,%d,%d,%d,%f,%d,%d"),
 		*BenchmarkName, *GetWorld()->GetMapName(), (float)(TotalPathLength/TotalSuccesfulSearchDuration/(double)VoxelSize), ResultCounter[0], VolumeInvalid, ResultCounter[Timeout], WrongLocation, ResultCounter[EndLocationUnreachable],
 		ResultCounter[Unknown], BenchmarkDurationSeconds, TotalSuccesfulSearchDuration / 1000.f, FailedRequestsDuration / 1000.f, TotalPathLength, VoxelSize, OctreeDepth, AgentRadius, AgentHalfHeight, BenchmarkFindPathUserData, TotalNodeCount, IsAsyncBenchmark, DynamicObstaclesUpdateRate, MaxGenerationThreads, RecommendedSampleSize);

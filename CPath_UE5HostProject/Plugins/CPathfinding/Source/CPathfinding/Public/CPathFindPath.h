@@ -9,7 +9,6 @@
 #include "Core/Public/HAL/RunnableThread.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
 #include <atomic>
-#include <CPathNode.h>
 #include <vector>
 #include <memory>
 #include <CPathDefines.h>
@@ -32,12 +31,14 @@ public:
 	// Can be called from main thread, but can freeze the game if you increase TimeLimit.
 	CPathAStarNode* FindPath(ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 1.f / 200.f, TArray<CPathAStarNode>* RawNodes = nullptr);
 
+	ECPathfindingFailReason FindPath(ACPathVolume* VolumeRef, FCPathResult* Result, FVector Start, FVector End, uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 1.f / 200.f, bool RequestRawPath = false, bool RequestUserPath = true);
+
 	// Uses cached data in this class, only working if all the arguments were passed via constructor.
 	// Returns true on success, result is in UserPath
 	bool FindPath();
 
 	// Set this to true to interrupt pathfinding. FindPath returns an empty array.
-	bool bStop = false;
+	std::atomic_bool bStop = false;
 
 	// Removes nodes in (nearly)straight sections, transforms to Blueprint exposed struct, optionally reverses it so that the path is from start to end and returns raw nodes.
 	void TransformToUserPath(CPathAStarNode* PathEndNode, TArray<FCPathNode>& UserPath, bool bReverse = true);
