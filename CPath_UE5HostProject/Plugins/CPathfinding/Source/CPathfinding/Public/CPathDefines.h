@@ -19,7 +19,7 @@
 
 // Uncomment these or define somwhere else to see performance logs
 //#define LOG_GENERATORS 1
-#define LOG_PATHFINDERS 1
+//#define LOG_PATHFINDERS 1
 
 enum ENeighbourDirection
 {

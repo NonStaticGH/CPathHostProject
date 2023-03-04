@@ -14,11 +14,17 @@ ANewThreadingTest::ANewThreadingTest()
 }
 
 
+uint32 ANewThreadingTest::RequestsSent = 0;
+uint32 ANewThreadingTest::RequestsReceived = 0;
 
 void ANewThreadingTest::OnPathFound(FCPathResult& PathResult)
 {
+#ifdef LOG_PATHFINDERS
 	UE_LOG(LogTemp, Warning, TEXT("TEST: ReceivedPath with result: %d"), (int)PathResult.FailReason);
+#endif
+	
 	UnfinishedRequests--;
+	RequestsReceived++;
 }
 
 // Called when the game starts or when spawned
@@ -26,6 +32,8 @@ void ANewThreadingTest::BeginPlay()
 {
 	Super::BeginPlay();
 	SetActorTickInterval(TickInterval);
+	RequestsSent = 0;
+	RequestsReceived = 0;
 }
 
 // Called every frame
@@ -43,9 +51,11 @@ void ANewThreadingTest::Tick(float DeltaTime)
 	{
 		auto FunctionName = GET_FUNCTION_NAME_CHECKED(ANewThreadingTest, OnPathFound);
 		FVector End = GetActorLocation() + FVector(2000, 0, 0);
-		ACPathCore::GetInstance(GetWorld())->FindPathAsync(this, FunctionName, VolumeRef, GetActorLocation(), End, 2);
+		VolumeRef->FindPathAsync(this, FunctionName, GetActorLocation(), End, 2);
 		UnfinishedRequests++;
+		RequestsSent++;
 	}
-	
+	RequestsSentBP = RequestsSent;
+	RequestsReceivedBP = RequestsReceived;
 }
 

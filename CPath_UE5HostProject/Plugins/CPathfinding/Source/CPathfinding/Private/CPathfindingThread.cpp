@@ -8,7 +8,6 @@
 #include "CPathCore.h"
 
 
-
 FCPathfindingThread::FCPathfindingThread(ACPathCore* Producer, int Index)
 {
 	CoreRef = Producer;
@@ -54,13 +53,15 @@ uint32 FCPathfindingThread::Run()
 		if (InputQueue.IsEmpty())
 		{
 			IsDoingWork = false;
-			PrintThreadMessage(FString("WaitingForTask"));
+			PrintThreadMessage(FString::Printf(TEXT("WaitingForTask. CurrentTaskCount= %d, TasksSubmited= %d, TasksAssigned= %d"), CurrentTaskCount.load(), TasksSubmited, TasksAssigned));
 			Semaphore->Wait();
 			if (KillRequested)
 				return 0;
+			IsDoingWork = true;
 		}
 		FCPathRequest Request;
-		InputQueue.Dequeue(Request);
+		if (!InputQueue.Dequeue(Request))
+			continue;
 
 		// After volume is generated and valid, performing FindPath call
 		if (WaitForVolume(Request.VolumeRef))
@@ -69,7 +70,8 @@ uint32 FCPathfindingThread::Run()
 
 			FCPathResult* Result = new FCPathResult();
 			Result->FailReason = None;
-			FPlatformProcess::Sleep(0.0001);
+	
+			FPlatformProcess::Sleep(0.0005);
 
 			Result->SearchDuration = 0.05;
 			
@@ -84,6 +86,11 @@ uint32 FCPathfindingThread::Run()
 
 			SubmitResult(Result, Request.OnPathFound);
 		}
+		else
+		{
+			CurrentTaskCount--;
+		}
+	
 	}
 	return 0;
 }
@@ -93,6 +100,7 @@ void FCPathfindingThread::Stop()
 	PrintThreadMessage(FString("Stop"));
 	KillRequested.store(true);
 	AStar->bStop.store(true);
+	InputQueue.Empty();
 	WakeUp();
 }
 
@@ -137,12 +145,13 @@ void FCPathfindingThread::AssignTask(FCPathRequest& FindPathRequest)
 {
 	InputQueue.Enqueue(FindPathRequest);
 	CurrentTaskCount++;
+	TasksAssigned++;
 	WakeUp();
 }
 
 void FCPathfindingThread::PrintThreadMessage(FString Message)
 {
-#if LOG_PATHFINDERS
+#ifdef LOG_PATHFINDERS
 	UE_LOG(LogTemp, Warning, TEXT("%s: %s"), *ThreadName, *Message);
 #endif
 }
@@ -152,6 +161,7 @@ void FCPathfindingThread::SubmitResult(FCPathResult* Result, PathResultDelegate 
 	checkf(IsValid(CoreRef), TEXT("CPATH - PathfindingThread SubmitResult:::CoreRef not valid!"));
 	CoreRef->OutputQueue.Enqueue(std::pair<FCPathResult*, PathResultDelegate>(Result, Delegate));
 	CurrentTaskCount--;
+	TasksSubmited++;
 }
 
 bool FCPathfindingThread::WaitForVolume(ACPathVolume* Volume)

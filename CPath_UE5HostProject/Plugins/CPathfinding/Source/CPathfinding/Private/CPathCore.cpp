@@ -14,13 +14,35 @@ ACPathCore::ACPathCore()
 }
 
 ACPathCore* ACPathCore::Instance = nullptr;
+bool ACPathCore::WasInstanceCreated = false;
+
+ACPathCore* ACPathCore::GetInstance(UWorld* World)
+{
+	if (!IsValid(Instance) && !WasInstanceCreated)
+	{
+		PrintCoreMessage(FString("Spawning Instance"));
+		Instance = World->SpawnActor<ACPathCore>();
+		WasInstanceCreated = true;
+	}
+	return Instance;
+}
+
+bool ACPathCore::DoesInstanceExist()
+{
+	return (bool)Instance;
+}
+
+void ACPathCore::EnableNewInstanceCreation()
+{
+	WasInstanceCreated = false;
+}
 
 // Called when the game starts or when spawned
 void ACPathCore::BeginPlay()
 {
 	Super::BeginPlay();
 	ExpectedThreadCount = FPlatformMisc::NumberOfCores() - 1;
-
+	//ExpectedThreadCount = 1;
 	for (int i = 0; i < ExpectedThreadCount; i++)
 	{
 		Threads.push_back(CreateThread(i));
@@ -29,16 +51,23 @@ void ACPathCore::BeginPlay()
 
 void ACPathCore::BeginDestroy()
 {
-	Super::BeginDestroy();
 	StopAndDeleteThreads();
 	Instance = nullptr;
+	Super::BeginDestroy();
+}
+
+void ACPathCore::EndPlay(EEndPlayReason::Type EndPlayReason)
+{
+	StopAndDeleteThreads();
+	Instance = nullptr;
+	Super::EndPlay(EndPlayReason);
 }
 
 void ACPathCore::StopAndDeleteThreads()
 {
 	if (Threads.size() > 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("CORE: DeletingThreads"));
+		PrintCoreMessage(FString("Deleting threads"));
 	}
 	while (Threads.size() > 0)
 	{
@@ -47,22 +76,16 @@ void ACPathCore::StopAndDeleteThreads()
 		delete Thread;
 		Threads.pop_back();
 	}
+
+	
 }
 
-void ACPathCore::FindPathAsync(UObject* CallingObject, const FName& InFunctionName, ACPathVolume* VolumeRef, FVector Start, FVector End, uint32 SmoothingPasses, int32 UserData, float TimeLimit, bool RequestRawPath, bool RequestUserPath)
-{
-	FCPathRequest Request;
-	Request.OnPathFound.BindUFunction(CallingObject, InFunctionName);
-	Request.VolumeRef = VolumeRef;
-	Request.Start = Start;
-	Request.End = End;
-	Request.SmoothingPasses = SmoothingPasses;
-	Request.UserData = UserData;
-	Request.TimeLimit = TimeLimit;
-	Request.RequestRawPath = RequestRawPath;
-	Request.RequestUserPath = RequestUserPath;
 
-	AssignAsyncRequest(Request);
+void ACPathCore::PrintCoreMessage(FString Message)
+{
+#ifdef LOG_PATHFINDERS
+	UE_LOG(LogTemp, Warning, TEXT("CORE: %s"), *Message);
+#endif
 }
 
 // Called every frame
@@ -82,9 +105,7 @@ void ACPathCore::Tick(float DeltaTime)
 		}
 		else
 		{
-#if LOG_PATHFINDERS
-			UE_LOG(LogTemp, Warning, TEXT("ACPathCore::Tick - DELEGATE wasn't bound"));
-#endif
+			PrintCoreMessage(FString("Tick - DELEGATE wasn't bound"));
 		}
 		delete Result.first;
 	}
@@ -92,19 +113,10 @@ void ACPathCore::Tick(float DeltaTime)
 
 ACPathCore::~ACPathCore()
 {
-	UE_LOG(LogTemp, Warning, TEXT("CORE: Destructor"));
+	PrintCoreMessage(FString("Destructor"));
 	StopAndDeleteThreads();
 }
 
-ACPathCore* ACPathCore::GetInstance(UWorld* World)
-{
-	if (!IsValid(Instance))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("CORE: Spawning"));
-		Instance = World->SpawnActor<ACPathCore>();
-	}
-	return Instance;
-}
 
 FCPathfindingThread* ACPathCore::CreateThread(int ThreadIndex)
 {

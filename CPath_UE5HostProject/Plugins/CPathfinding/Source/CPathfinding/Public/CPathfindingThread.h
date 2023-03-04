@@ -55,6 +55,8 @@ private:
 	std::atomic_bool KillRequested = false;
 	std::atomic_bool IsDoingWork = false;
 	std::atomic_int CurrentTaskCount = 0;
+	int TasksSubmited = 0;
+	int TasksAssigned = 0;
 	
 	class ACPathCore* CoreRef = nullptr;
 	FRunnableThread* Thread = nullptr;

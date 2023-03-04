@@ -34,6 +34,15 @@ public:
 
 	virtual void BeginDestroy() override;
 
+	// This is the method to find get a path in c++, asynchronously. 
+	// Example function you can provide: void OnPathFound(FCPathResult& PathResult);
+	// You can get the function name via macro: GET_FUNCTION_NAME_CHECKED(YourUObjectType, OnPathFound);
+	// Returns false if FindPath request wasn't made (happens if somehow called before begin play or if one of the volumes has been destroyed)
+	bool FindPathAsync(UObject* CallingObject, const FName& InFunctionName,
+		FVector Start, FVector End,
+		uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 0.1,
+		bool RequestRawPath = false, bool RequestUserPath = true);
+
 
 	// ------- EXTENDABLE ------
 
@@ -179,9 +188,6 @@ public:
 	// Not used for now, async benchmark does not provide reliable results
 	//UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CPath|Benchmark")
 	bool IsAsyncBenchmark = false;
-
-
-
 
 
 	// Shapes to use when checking if voxel is free or not

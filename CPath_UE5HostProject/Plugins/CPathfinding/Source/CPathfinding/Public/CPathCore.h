@@ -24,24 +24,30 @@ class CPATHFINDING_API ACPathCore : public AActor
 public:
 
 	~ACPathCore();
+
+	
 	static ACPathCore* GetInstance(UWorld* World);
+	static bool DoesInstanceExist();
+	static void EnableNewInstanceCreation();
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void BeginPlay() override;
 	virtual void BeginDestroy() override;
+	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
 
 	// This is called by CPathVolumes before Octrees are deleted
 	// BeginDestroy() is latent and may ba called AFTER Octree is deleted, causing a crash
 	// so this is necessary
 	void StopAndDeleteThreads();
 
-	void FindPathAsync(UObject* CallingObject, const FName& InFunctionName,
-						ACPathVolume* VolumeRef, FVector Start, FVector End, 
-						uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 0.2, 
-						bool RequestRawPath = false, bool RequestUserPath = true);
+	// Using this directly is unsafe, please use the FindPathAsync function in ACPathVolume class.
+	void AssignAsyncRequest(FCPathRequest& Request);
+
+	
 
 protected:
 	ACPathCore();
+	static void PrintCoreMessage(FString Message);
 
 private:
 	int ExpectedThreadCount;
@@ -52,9 +58,10 @@ private:
 
 	FCPathfindingThread* CreateThread(int ThreadIndex);
 
-	inline void AssignAsyncRequest(FCPathRequest& Request);
+
 
 	static ACPathCore* Instance;
+	static bool WasInstanceCreated;
 
 };
 

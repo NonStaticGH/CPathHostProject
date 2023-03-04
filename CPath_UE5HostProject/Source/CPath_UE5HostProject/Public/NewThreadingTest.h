@@ -8,6 +8,7 @@
 #include <memory>
 #include "NewThreadingTest.generated.h"
 
+
 UCLASS()
 class CPATH_UE5HOSTPROJECT_API ANewThreadingTest : public AActor
 {
@@ -19,7 +20,13 @@ public:
 
 	UPROPERTY(VisibleAnywhere)
 		int UnfinishedRequests = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+		int RequestsSentBP = 0;
 		
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+		int RequestsReceivedBP = 0;
+
 	UPROPERTY(EditAnywhere)
 		float TickInterval = 0;
 
@@ -35,4 +42,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	class ACPathVolume* VolumeRef = nullptr;
+
+	static uint32 RequestsSent;
+	static uint32 RequestsReceived;
 };

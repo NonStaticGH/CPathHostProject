@@ -197,6 +197,10 @@ void ACPathVolume::BeginPlay()
 	VolumeBox->SetCollisionResponseToChannel(TraceChannel, ECR_Ignore);
 	GenerationFinishedSemaphore = FGenericPlatformProcess::GetSynchEventFromPool();
 
+	if (!ACPathCore::DoesInstanceExist()) 
+	{
+		ACPathCore::EnableNewInstanceCreation();
+	}
 	CoreInstance = ACPathCore::GetInstance(GetWorld());
 
 	if (GenerateOnBeginPlay)
@@ -319,6 +323,17 @@ void ACPathVolume::Tick(float DeltaTime)
 
 void ACPathVolume::BeginDestroy()
 {
+	// Killing generation threads
+	GeneratorThreads.clear();
+	GeneratorsRunning.store(0);
+	if (GenerationFinishedSemaphore)
+	{
+		GenerationFinishedSemaphore->Trigger();
+		FGenericPlatformProcess::ReturnSynchEventToPool(GenerationFinishedSemaphore);
+		GenerationFinishedSemaphore = nullptr;
+	}
+
+	// Killing pathfinding threads
 	if (IsValid(CoreInstance))
 	{
 		CoreInstance->StopAndDeleteThreads();
@@ -326,15 +341,36 @@ void ACPathVolume::BeginDestroy()
 		{
 			if(CoreInstance->IsValidLowLevel())
 				CoreInstance->Destroy();
-		}
-			
+		}	
 	}
 	CoreInstance = nullptr;
 	Super::BeginDestroy();
 	
-	GeneratorThreads.clear();
+	// Deleting the graph
 	delete[] Octrees;
-	FGenericPlatformProcess::ReturnSynchEventToPool(GenerationFinishedSemaphore);
+	
+		
+}
+
+bool ACPathVolume::FindPathAsync(UObject* CallingObject, const FName& InFunctionName, FVector Start, FVector End, uint32 SmoothingPasses, int32 UserData, float TimeLimit, bool RequestRawPath, bool RequestUserPath)
+{
+	if(!CoreInstance)
+		return false;
+
+	FCPathRequest Request;
+	Request.OnPathFound.BindUFunction(CallingObject, InFunctionName);
+	Request.VolumeRef = this;
+	Request.Start = Start;
+	Request.End = End;
+	Request.SmoothingPasses = SmoothingPasses;
+	Request.UserData = UserData;
+	Request.TimeLimit = TimeLimit;
+	Request.RequestRawPath = RequestRawPath;
+	Request.RequestUserPath = RequestUserPath;
+
+	CoreInstance->AssignAsyncRequest(Request);
+
+	return true;
 }
 
 
