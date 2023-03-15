@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Core/Public/HAL/Runnable.h"
 #include "Core/Public/HAL/RunnableThread.h"
+#include "Containers/Queue.h"
 #include "CPathNode.h"
 #include <atomic>
 #include "HAL/Event.h"

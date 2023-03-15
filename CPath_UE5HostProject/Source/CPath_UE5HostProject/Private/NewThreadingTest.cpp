@@ -50,8 +50,7 @@ void ANewThreadingTest::Tick(float DeltaTime)
 	else
 	{
 		auto FunctionName = GET_FUNCTION_NAME_CHECKED(ANewThreadingTest, OnPathFound);
-		FVector End = GetActorLocation() + FVector(2000, 0, 0);
-		VolumeRef->FindPathAsync(this, FunctionName, GetActorLocation(), End, 2);
+		VolumeRef->FindPathAsync(this, FunctionName, GetActorLocation(), GetActorLocation(), 0);
 		UnfinishedRequests++;
 		RequestsSent++;
 	}

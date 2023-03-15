@@ -84,7 +84,8 @@ void ACPathCore::StopAndDeleteThreads()
 void ACPathCore::PrintCoreMessage(FString Message)
 {
 #ifdef LOG_PATHFINDERS
-	UE_LOG(LogTemp, Warning, TEXT("CORE: %s"), *Message);
+	if(LOG_PATHFINDERS > 1)
+		UE_LOG(LogTemp, Warning, TEXT("CORE: %s"), *Message);
 #endif
 }
 
@@ -149,7 +150,7 @@ inline void ACPathCore::AssignAsyncRequest(FCPathRequest& Request)
 		{
 			delete Threads[i];
 			Threads[i] = CreateThread(i);
-			checkf(Threads[i]->IsThreadValid(), TEXT("CPATH - CPathCore AssignAsyncRequest:::Couldn't create a new thread!"));
+			checkf(Threads[i]->IsThreadValid(), TEXT("CPATH - CPathCore AssignAsyncRequest:::Thread died unexpectedly and a new one couldn't be created. (this has never triggered for me)"));
 			LeastBusyThread = i;
 			LeastTaskCount = 0;
 			break;

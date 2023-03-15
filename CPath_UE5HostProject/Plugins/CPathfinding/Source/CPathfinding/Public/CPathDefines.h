@@ -19,7 +19,7 @@
 
 // Uncomment these or define somwhere else to see performance logs
 //#define LOG_GENERATORS 1
-//#define LOG_PATHFINDERS 1
+//#define LOG_PATHFINDERS 1 // set it to 2 for more async logs
 
 enum ENeighbourDirection
 {

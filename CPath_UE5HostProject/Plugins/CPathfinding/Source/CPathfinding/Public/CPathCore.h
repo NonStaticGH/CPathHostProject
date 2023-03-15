@@ -4,7 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include <memory>
+#include <vector>
+#include "Containers/Queue.h"
 #include "CPathfindingThread.h"
 #include "CPathCore.generated.h"
 

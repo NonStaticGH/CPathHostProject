@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
-	"Version": 1,
+	"Version": 3,
 	"VersionName": "1.03",
 	"FriendlyName": "CPathfinding",
-	"Description": "This plugin lets you find paths in (not only) 3D space between two points. For detailed info, please refer to the documentation.",
+	"Description": "This plugin lets you find paths in space between two locations. For detailed info, please refer to the documentation.",
 	"Category": "AI",
 	"CreatedBy": "Dominik Trautman",
 	"CreatedByURL": "https://github.com/NonStaticGH",

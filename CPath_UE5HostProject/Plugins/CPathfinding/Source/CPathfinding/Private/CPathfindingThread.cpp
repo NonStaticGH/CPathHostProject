@@ -4,6 +4,7 @@
 #include "CPathfindingThread.h"
 #include "CPathVolume.h"
 #include "CPathFindPath.h"
+#include "Engine/World.h"
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "CPathCore.h"
 
@@ -68,23 +69,34 @@ uint32 FCPathfindingThread::Run()
 		{
 			Request.VolumeRef->PathfindersRunning++;
 
-			FCPathResult* Result = new FCPathResult();
-			Result->FailReason = None;
-	
-			FPlatformProcess::Sleep(0.0005);
+			// State of the volume could have changed during incrementing the atomic variable
+			// So it's necessary to check it again before doing any pathfinding
+			if (WaitForVolume(Request.VolumeRef))
+			{
+				// This is deleted in CPathCore::Tick
+				FCPathResult* Result = new FCPathResult();
 
-			Result->SearchDuration = 0.05;
-			
-			//TODO: Perform pathfinding here
+				Result->FailReason = AStar->FindPath(Request.VolumeRef, Result, Request.Start, Request.End,
+					Request.SmoothingPasses, Request.UserData, Request.TimeLimit,
+					Request.RequestRawPath, Request.RequestUserPath);
+					
+				Request.VolumeRef->PathfindersRunning--;
 
-			Request.VolumeRef->PathfindersRunning--;
+				// Thread could be stopped during pathfinding
+				// In this case we dont have a proper result
+				if (KillRequested)
+				{
+					delete Result;
+					return 0;
+				}
 
-			// Thread could be stopped during pathfinding
-			// In this case we dont have a proper result
-			if (KillRequested)
-				return 0;
-
-			SubmitResult(Result, Request.OnPathFound);
+				SubmitResult(Result, Request.OnPathFound);
+			}
+			else
+			{
+				Request.VolumeRef->PathfindersRunning--;
+				CurrentTaskCount--;
+			}
 		}
 		else
 		{

@@ -32,16 +32,40 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void BeginDestroy() override;
-
 	// This is the method to find get a path in c++, asynchronously. 
 	// Example function you can provide: void OnPathFound(FCPathResult& PathResult);
 	// You can get the function name via macro: GET_FUNCTION_NAME_CHECKED(YourUObjectType, OnPathFound);
 	// Returns false if FindPath request wasn't made (happens if somehow called before begin play or if one of the volumes has been destroyed)
 	bool FindPathAsync(UObject* CallingObject, const FName& InFunctionName,
 		FVector Start, FVector End,
-		uint32 SmoothingPasses = 1, int32 UserData = 0, float TimeLimit = 0.1,
+		uint32 SmoothingPasses = 2, int32 UserData = 0, float TimeLimit = 0.15f,
 		bool RequestRawPath = false, bool RequestUserPath = true);
+
+	// Same as above, just using the FCPathRequest structure to pass parameters
+	bool FindPathAsync(FCPathRequest& Request);
+
+	// This searches for a path on this thread, so the result is available here and now.
+	// Increase TimeLimit at your own risk. 
+	// Default time of 2ms means that in the worst case scenatio, this call will increse your frametime by 2ms!
+	// Use this only for small graphs or very short paths (for example, <=1000 node graph)
+	// Whenever possible, use FindPathAsync instead
+	// IMPORTANT: When using with dynamic obstacles, this might fail with reason GraphNotGenerated while the graph is being updated!
+	FCPathResult FindPathSynchronous(FVector Start, FVector End,
+		uint32 SmoothingPasses = 2, int32 UserData = 0, float TimeLimit = 0.002f,
+		bool RequestRawPath = false, bool RequestUserPath = true);
+
+
+	// Blueprint exposed version
+	// This searches for a path on this thread, so the result is available here and now.
+	// Increase TimeLimit at your own risk. 
+	// Default time of 2ms means that in the worst case scenatio, this call will increse your frametime by 2ms!
+	// Use this only for small graphs or very short paths (for example, <=1000 node graph)
+	// Whenever possible, use FindPathAsync instead
+	// IMPORTANT: When using with dynamic obstacles, this might fail with reason GraphNotGenerated while the graph is being updated!
+	UFUNCTION(BlueprintCallable, Category = "CPath", Meta = (ExpandEnumAsExecs = "Branches"))
+		void FindPathSynchronous(TEnumAsByte<BranchFailSuccessEnum>& Branches, TArray<FCPathNode>& Path, TEnumAsByte<ECPathfindingFailReason>& FailReason,
+			 FVector Start, FVector End, int SmoothingPasses = 2,
+			int UserData = 0, float TimeLimit = 0.002f);
 
 
 	// ------- EXTENDABLE ------
@@ -196,14 +220,24 @@ public:
 	// Returns false if graph couldnt start generating
 	bool GenerateGraph();
 
+	// These are called by UE in this order
+	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
+	virtual void BeginDestroy() override;
+	virtual bool IsReadyForFinishDestroy() override;
+	virtual void FinishDestroy() override;
+
 protected:
 
 	virtual void BeginPlay() override;
 
+	// The Octree data
 	CPathOctree* Octrees = nullptr;
 
-	static ACPathCore* CoreInstance;
-
+	// This is for find path requests, shouldn't be accessed directly unless you know what you're doing
+	// UPROPERTY() is here so that UE's garabge collector doesn't randomly
+	// decide that this is useless and destroy it -_-
+	UPROPERTY()
+	ACPathCore* CoreInstance = nullptr;
 public:
 
 	// Location of the first voxel, set during graph generation

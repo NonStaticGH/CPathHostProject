@@ -3,6 +3,8 @@
 
 #include "CPathAsyncVolumeGeneration.h"
 #include "CPathVolume.h"
+#include "GenericPlatform/GenericPlatformProcess.h"
+#include "Templates/Function.h"
 #include "Engine/World.h"
 #include <thread>
 
@@ -19,16 +21,19 @@ FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume, uin
 
 // Sets default values
 FCPathAsyncVolumeGenerator::FCPathAsyncVolumeGenerator(ACPathVolume* Volume)
+	:
+	WakeUpCondition([this]() { return WakeUpCondition(); })
 {
 	VolumeRef = Volume;
-
+	
 }
 
 FCPathAsyncVolumeGenerator::~FCPathAsyncVolumeGenerator()
 {
-	bStop = true;
+	RequestedKill.store(true);
 	if (ThreadRef)
 		ThreadRef->Kill(true);
+	ThreadRef = nullptr;
 }
 
 bool FCPathAsyncVolumeGenerator::Init()
@@ -43,13 +48,17 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 
 	// Waiting for pathfinders to finish.
 	// Generators have priority over pathfinders, so we block further pathfinders from starting by incrementing GeneratorsRunning first	
-	while (VolumeRef->PathfindersRunning.load() > 0 && !bStop)
-		std::this_thread::sleep_for(std::chrono::milliseconds(25));
+	while (!ShouldWakeUp())
+		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+	
+		
+	if(RequestedKill.load())
+		return 0;
 
 #ifdef LOG_GENERATORS
 	auto GenerationStart = TIMENOW;
 #endif
-
+	
 	if (LastIndex > 0)
 	{
 		if (bObstacles)
@@ -62,14 +71,14 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 			for (uint32 i = FirstIndex; i < LastIndex; i++)
 				EndIter++;
 
-			for (auto Iter = StartIter; Iter != EndIter && !bStop; Iter++)
+			for (auto Iter = StartIter; Iter != EndIter && !RequestedKill.load(); Iter++)
 			{
 				RefreshTree(*Iter);
 			}
 		}
 		else
 		{
-			for (uint32 OuterIndex = FirstIndex; OuterIndex < LastIndex && !bStop; OuterIndex++)
+			for (uint32 OuterIndex = FirstIndex; OuterIndex < LastIndex && !RequestedKill.load(); OuterIndex++)
 			{
 				RefreshTree(OuterIndex);
 			}
@@ -96,17 +105,24 @@ uint32 FCPathAsyncVolumeGenerator::Run()
 
 void FCPathAsyncVolumeGenerator::Stop()
 {
+	RequestedKill.store(true);
 
-	// Preventing a potential deadlock if the process is killed without waiting
+	// Preventing a potential deadlock if the process is somehow killed without waiting
 	if (bIncreasedGenRunning)
-		VolumeRef->GeneratorsRunning--;
+		if(IsValid(VolumeRef))
+			VolumeRef->GeneratorsRunning--;
 
 	bIncreasedGenRunning = false;
 }
 
 void FCPathAsyncVolumeGenerator::Exit()
 {
+	ThreadExited.store(true);
+}
 
+bool FCPathAsyncVolumeGenerator::HasFinishedWorking()
+{
+	return ThreadExited.load();
 }
 
 void FCPathAsyncVolumeGenerator::RefreshTree(uint32 OuterIndex)
@@ -117,6 +133,11 @@ void FCPathAsyncVolumeGenerator::RefreshTree(uint32 OuterIndex)
 		return;
 	}
 	RefreshTreeRec(OctreeRef, 0, VolumeRef->WorldLocationFromTreeID(OuterIndex));
+}
+
+FString FCPathAsyncVolumeGenerator::GetNameFromID(uint8 ID)
+{
+	return FString::Printf(TEXT("GeneratorThread %d"), (int)ID);
 }
 
 bool FCPathAsyncVolumeGenerator::RefreshTreeRec(CPathOctree* OctreeRef, uint32 Depth, FVector TreeLocation)
@@ -159,6 +180,11 @@ bool FCPathAsyncVolumeGenerator::RefreshTreeRec(CPathOctree* OctreeRef, uint32 D
 
 	}
 	return false;
+}
+
+bool FCPathAsyncVolumeGenerator::ShouldWakeUp()
+{
+	return VolumeRef->PathfindersRunning.load() == 0 || RequestedKill.load();
 }
 
 
